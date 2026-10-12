@@ -1,0 +1,21 @@
+# Build output
+target/
+*.jar
+*.war
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Local secrets and machine specific configuration
+.env
+application-local.yml
+
+# Logs and OS files
+*.log
+logs/
+.DS_Store
+Thumbs.db

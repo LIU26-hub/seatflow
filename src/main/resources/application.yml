@@ -1,0 +1,45 @@
+spring:
+  application:
+    name: seatflow
+
+  datasource:
+    url: "${DB_URL:jdbc:mysql://localhost:3306/seatflow?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8}"
+    username: "${DB_USERNAME:root}"
+    password: "${DB_PASSWORD:}"
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # The schema is owned by Flyway. Hibernate only verifies that the entities
+  # match the tables that Flyway created, and fails fast when they drift apart.
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  jackson:
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.seatflow: info
+    org.hibernate.SQL: debug
