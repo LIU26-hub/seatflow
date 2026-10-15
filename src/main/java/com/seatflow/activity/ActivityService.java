@@ -1,5 +1,7 @@
 package com.seatflow.activity;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -16,25 +18,34 @@ import lombok.RequiredArgsConstructor;
  * {@code @RequiredArgsConstructor}. Field injection is avoided: constructor
  * injection makes dependencies explicit, keeps fields final and lets tests
  * build the service with a plain constructor call.
+ *
+ * <p>中文批注：活动业务逻辑与事务边界的所在地。@Transactional 属于这一层，不属于控制器
+ * （放在控制器会让事务横跨参数序列化，变成占着数据库连接的长事务）。
+ * 依赖通过构造器注入，所以测试可以 new 出对象并传入假仓储与假时钟；字段是 final，构造后不可变。
+ * 时间统一取自注入的 Clock，并且每次调用只取一次"现在"，保证同一份响应里所有行基于同一时刻判断，
+ * 否则边界上的两行数据可能自相矛盾。
  */
 @Service
 @RequiredArgsConstructor
 public class ActivityService {
 
     private final ActivityRepository activityRepository;
+    private final Clock clock;
 
     @Transactional(readOnly = true)
     public List<ActivityResponse> listPublishedActivities() {
+        LocalDateTime now = LocalDateTime.now(clock);
         return activityRepository.findByStatusOrderByRegistrationStartAsc(ActivityStatus.PUBLISHED)
                 .stream()
-                .map(ActivityResponse::from)
+                .map(activity -> ActivityResponse.from(activity, now))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public ActivityResponse getActivity(Long id) {
+        LocalDateTime now = LocalDateTime.now(clock);
         return activityRepository.findById(id)
-                .map(ActivityResponse::from)
+                .map(activity -> ActivityResponse.from(activity, now))
                 .orElseThrow(() -> BusinessException.notFound("activity not found: " + id));
     }
 }

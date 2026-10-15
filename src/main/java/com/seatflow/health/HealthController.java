@@ -17,6 +17,9 @@ import com.seatflow.common.ApiResponse;
  * <p>Spring Boot Actuator already exposes {@code /actuator/health}. This
  * endpoint exists so the project keeps a tiny, dependency free controller that
  * proves the web layer, the response envelope and the JSON setup all work.
+ *
+ * <p>中文批注：应用自身的存活探针。刻意不依赖数据库，只用来快速判断"进程活着、web 层可用"；
+ * 数据库连通性由 /actuator/health 负责，两者分工不同——业务故障时存活探针仍然要能回答。
  */
 @RestController
 @RequestMapping("/api/health")

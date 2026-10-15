@@ -14,6 +14,10 @@ import lombok.RequiredArgsConstructor;
 /**
  * HTTP layer only: bind the request, delegate to the service, wrap the result.
  * No business rules and no repository access in this class.
+ *
+ * <p>中文批注：HTTP 入口，只做三件事——绑定请求、委托服务、包装响应。
+ * 这里不应出现任何业务规则：一旦把判断写进控制器，M4 的定时任务与消息消费者就无法复用同一套逻辑，
+ * 只能复制一份，两份代码早晚会走歪。
  */
 @RestController
 @RequestMapping("/api/activities")
