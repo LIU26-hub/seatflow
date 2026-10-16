@@ -40,7 +40,7 @@ public record ActivityResponse(
                 activity.getCapacity(),
                 activity.getRegisteredCount(),
                 activity.seatsLeft(),
-                activity.isRegistrationOpen(now),
+                activity.isOpenForRegistration(now),
                 activity.getRegistrationStart(),
                 activity.getRegistrationEnd(),
                 activity.getStatus());
