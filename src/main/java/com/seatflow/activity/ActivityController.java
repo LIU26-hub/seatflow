@@ -39,4 +39,25 @@ public class ActivityController {
     public ApiResponse<ActivityResponse> create(@Valid @RequestBody CreateActivityRequest request) {
         return ApiResponse.success(activityService.createActivity(request));
     }
+
+    @PutMapping("/{id}")
+    public ApiResponse<ActivityResponse> update(@PathVariable Long id, @Valid @RequestBody CreateActivityRequest request) {
+        return ApiResponse.success(activityService.updateActivity(id, request));
+    }
+
+    @PostMapping("/{id}/publish")
+    public ApiResponse<ActivityResponse> publish(@PathVariable Long id) {
+        return ApiResponse.success(activityService.publishActivity(id));
+    }
+
+    @PostMapping("/{id}/cancel")
+    public ApiResponse<ActivityResponse> cancel(@PathVariable Long id) {
+        return ApiResponse.success(activityService.cancelActivity(id));
+    }
+
+    @GetMapping("/my")
+    public ApiResponse<List<ActivityResponse>> listMy() {
+        return ApiResponse.success(activityService.listMyUnpublishedActivities());
+    }
+
 }

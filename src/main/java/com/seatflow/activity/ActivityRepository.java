@@ -1,5 +1,6 @@
 package com.seatflow.activity;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,4 +16,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ActivityRepository extends JpaRepository<Activity, Long> {
 
     List<Activity> findByStatusOrderByRegistrationStartAsc(ActivityStatus status);
+
+    List<Activity> findByOrganizerIdAndStatusNotOrderByCreatedAtDesc(Long organizerId, ActivityStatus status);
 }

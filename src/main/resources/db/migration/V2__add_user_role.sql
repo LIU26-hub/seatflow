@@ -1,0 +1,7 @@
+ALTER TABLE app_user
+    ADD COLUMN role VARCHAR(32) NOT NULL DEFAULT 'PARTICIPANT'
+    AFTER display_name;
+
+ALTER TABLE activity
+    ADD COLUMN organizer_id BIGINT NOT NULL
+    AFTER id;

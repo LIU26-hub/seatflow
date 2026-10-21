@@ -48,4 +48,3 @@ CREATE TABLE registration
     KEY idx_registration_user (user_id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4;
-

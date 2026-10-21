@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.seatflow.activity.dto.ActivityResponse;
 import com.seatflow.common.BusinessException;
 import lombok.RequiredArgsConstructor;
+import java.util.Objects;
 
 /**
  * Application logic for activities.
@@ -47,10 +48,14 @@ public class ActivityService {
 
     @Transactional(readOnly = true)
     public ActivityResponse getActivity(Long id) {
-        LocalDateTime now = LocalDateTime.now(clock);
-        return activityRepository.findById(id)
-                .map(activity -> ActivityResponse.from(activity, now))
+        Activity a = activityRepository.findById(id)
                 .orElseThrow(() -> BusinessException.notFound("activity not found: " + id));
+        if (a.getStatus() != ActivityStatus.PUBLISHED
+                && !Objects.equals(a.getOrganizerId(), currentUserProvider.require().id())) {
+            throw BusinessException.notFound("activity not found: " + id);
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        return ActivityResponse.from(a, now);
     }
 
     @Transactional
@@ -71,5 +76,77 @@ public class ActivityService {
         activity.setStatus(ActivityStatus.DRAFT);
         Activity saved = activityRepository.save(activity);
         return ActivityResponse.from(saved, LocalDateTime.now(clock));
+    }
+
+    private Activity requireOwnedActivity(Long id) {
+        CurrentUser me = currentUserProvider.require();
+        //防止组织者被降级为普通用户后，重新登录后能管理活动
+        if (!me.canCreateActivity()) {
+            throw new BusinessException(403, "only organizer can manage activity");
+        }
+        Activity activity = activityRepository.findById(id)
+                .orElseThrow(() -> BusinessException.notFound("activity not found: " + id));
+        if (!Objects.equals(activity.getOrganizerId(), me.id())) {
+            throw new BusinessException(403, "you can only manage activities you created");
+        }
+        return activity;
+    }
+
+    @Transactional
+    public ActivityResponse updateActivity(Long id, CreateActivityRequest request) {
+        Activity activity = requireOwnedActivity(id);
+        // BR-11 只锁定"已发布"的活动。草稿必须保持可编辑，
+        // 否则组织者写错容量或时间窗之后只能取消重建，一处笔误就把整场活动废掉。
+        if (activity.getStatus() == ActivityStatus.PUBLISHED) {
+            if (request.capacity() != activity.getCapacity()) {
+                throw new BusinessException(409, "capacity cannot be changed after publishing");
+            }
+            if (!Objects.equals(request.registrationStart(), activity.getRegistrationStart())) {
+                throw new BusinessException(409, "registrationStart cannot be changed after publishing");
+            }
+            if (!Objects.equals(request.registrationEnd(), activity.getRegistrationEnd())) {
+                throw new BusinessException(409, "registrationEnd cannot be changed after publishing");
+            }
+        }
+        activity.setTitle(request.title());
+        activity.setDescription(request.description());
+        activity.setLocation(request.location());
+        activity.setCapacity(request.capacity());
+        activity.setRegistrationStart(request.registrationStart());
+        activity.setRegistrationEnd(request.registrationEnd());
+        return ActivityResponse.from(activityRepository.save(activity), LocalDateTime.now(clock));
+    }
+
+    @Transactional
+    public ActivityResponse publishActivity(Long id) {
+        Activity activity = requireOwnedActivity(id);
+        if (activity.getStatus() != ActivityStatus.DRAFT) {
+            throw new BusinessException(409, "only draft activity can be published");
+        }
+        activity.setStatus(ActivityStatus.PUBLISHED);
+        return ActivityResponse.from(activityRepository.save(activity), LocalDateTime.now(clock));
+    }
+
+    @Transactional
+    public ActivityResponse cancelActivity(Long id) {
+        Activity activity = requireOwnedActivity(id);
+        if (activity.getStatus() != ActivityStatus.PUBLISHED && activity.getStatus() != ActivityStatus.DRAFT) {
+            throw new BusinessException(409, "only published or draft activity can be cancelled");
+        }
+        activity.setStatus(ActivityStatus.CANCELLED);
+        return ActivityResponse.from(activityRepository.save(activity), LocalDateTime.now(clock));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ActivityResponse> listMyUnpublishedActivities() {
+        CurrentUser me = currentUserProvider.require();
+        if (!me.canCreateActivity()) {
+            throw new BusinessException(403, "only organizer can list activities you created");
+        }
+        LocalDateTime now = LocalDateTime.now(clock);
+        return activityRepository.findByOrganizerIdAndStatusNotOrderByCreatedAtDesc(me.id(), ActivityStatus.PUBLISHED)
+                .stream()
+                .map(activity -> ActivityResponse.from(activity, now))
+                .toList();
     }
 }
