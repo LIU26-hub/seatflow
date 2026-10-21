@@ -10,6 +10,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
+import com.seatflow.security.CurrentUserProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,10 +44,13 @@ class ActivityServiceTest {
 
     private ActivityService activityService;
 
+    @Mock
+    private CurrentUserProvider currentUserProvider;
+
     @BeforeEach
     void setUp() {
         Clock fixedClock = Clock.fixed(NOW.atZone(ZONE).toInstant(), ZONE);
-        activityService = new ActivityService(activityRepository, fixedClock);
+        activityService = new ActivityService(activityRepository, fixedClock, currentUserProvider);
     }
 
     @Test

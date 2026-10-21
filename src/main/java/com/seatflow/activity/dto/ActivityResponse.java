@@ -20,6 +20,7 @@ import com.seatflow.activity.ActivityStatus;
  */
 public record ActivityResponse(
         Long id,
+        Long organizerId,
         String title,
         String description,
         String location,
@@ -34,6 +35,7 @@ public record ActivityResponse(
     public static ActivityResponse from(Activity activity, LocalDateTime now) {
         return new ActivityResponse(
                 activity.getId(),
+                activity.getOrganizerId(),
                 activity.getTitle(),
                 activity.getDescription(),
                 activity.getLocation(),

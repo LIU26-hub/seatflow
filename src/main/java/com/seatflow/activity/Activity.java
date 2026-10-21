@@ -4,17 +4,19 @@ import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
  * An event that users can register for.
@@ -33,10 +35,12 @@ import lombok.Setter;
  * 对应产品文档的 BR-01、BR-02 与 BR-06。
  * 两个判断必须分开：如果只有合并后的业务方法，"正好开始""正好结束"这类边界会被状态与余票条件掩盖，
  * 窗口语义被改错也发现不了。
- * onCreate/onUpdate 是 JPA 生命周期回调，保存对象时自动维护创建时间与更新时间。
+ * 创建时间与更新时间由 Spring Data 审计机制自动维护（见 JpaAuditingConfig），
+ * 时间来自注入的 Clock 而不是 LocalDateTime.now()，与业务时间同源，也能被测试固定住。
  */
 @Entity
 @Table(name = "activity")
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -45,6 +49,9 @@ public class Activity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "organizer_id", nullable = false)
+    private Long organizerId;
 
     @Column(name = "title", nullable = false, length = 128)
     private String title;
@@ -71,23 +78,13 @@ public class Activity {
     @Column(name = "status", nullable = false, length = 32)
     private ActivityStatus status = ActivityStatus.DRAFT;
 
+    @CreatedDate
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
-
-    @PrePersist
-    void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
-        this.createdAt = now;
-        this.updatedAt = now;
-    }
-
-    @PreUpdate
-    void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
 
     public int seatsLeft() {
         return Math.max(capacity - registeredCount, 0);

@@ -4,6 +4,9 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.seatflow.activity.dto.CreateActivityRequest;
+import com.seatflow.security.CurrentUser;
+import com.seatflow.security.CurrentUserProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +34,7 @@ public class ActivityService {
 
     private final ActivityRepository activityRepository;
     private final Clock clock;
+    private final CurrentUserProvider currentUserProvider;
 
     @Transactional(readOnly = true)
     public List<ActivityResponse> listPublishedActivities() {
@@ -47,5 +51,25 @@ public class ActivityService {
         return activityRepository.findById(id)
                 .map(activity -> ActivityResponse.from(activity, now))
                 .orElseThrow(() -> BusinessException.notFound("activity not found: " + id));
+    }
+
+    @Transactional
+    public ActivityResponse createActivity(CreateActivityRequest request) {
+        CurrentUser currentUser = currentUserProvider.require();
+        if (!currentUser.canCreateActivity()) {
+            throw new BusinessException(403, "only organizer can create activity");
+        }
+        Activity activity = new Activity();
+        activity.setOrganizerId(currentUser.id());
+        activity.setTitle(request.title());
+        activity.setDescription(request.description());
+        activity.setLocation(request.location());
+        activity.setCapacity(request.capacity());
+        activity.setRegisteredCount(0);
+        activity.setRegistrationStart(request.registrationStart());
+        activity.setRegistrationEnd(request.registrationEnd());
+        activity.setStatus(ActivityStatus.DRAFT);
+        Activity saved = activityRepository.save(activity);
+        return ActivityResponse.from(saved, LocalDateTime.now(clock));
     }
 }

@@ -2,13 +2,12 @@ package com.seatflow.activity;
 
 import java.util.List;
 
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import com.seatflow.activity.dto.CreateActivityRequest;
+import org.springframework.web.bind.annotation.*;
 
 import com.seatflow.activity.dto.ActivityResponse;
 import com.seatflow.common.ApiResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -34,5 +33,10 @@ public class ActivityController {
     @GetMapping("/{id}")
     public ApiResponse<ActivityResponse> detail(@PathVariable Long id) {
         return ApiResponse.success(activityService.getActivity(id));
+    }
+
+    @PostMapping
+    public ApiResponse<ActivityResponse> create(@Valid @RequestBody CreateActivityRequest request) {
+        return ApiResponse.success(activityService.createActivity(request));
     }
 }
