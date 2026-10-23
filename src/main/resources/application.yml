@@ -22,6 +22,21 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  # Redis is not on the critical path for correctness: seat deduction is decided
+  # by a conditional UPDATE in MySQL. Redis only gates the rate limiter and,
+  # later in M3, caches roles. When it is unreachable the limiter fails open so
+  # registration keeps working (product document R-02).
+  data:
+    redis:
+      host: "${REDIS_HOST:localhost}"
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+      repositories:
+        # Only JPA repositories exist in this project. Turning Redis repository
+        # scanning off keeps startup logs clean and avoids Spring trying to
+        # interpret JPA interfaces as Redis ones.
+        enabled: false
+
   jackson:
     time-zone: Asia/Shanghai
     serialization:
@@ -38,6 +53,19 @@ seatflow:
       # anything but a local database.
       secret: "${JWT_SECRET:dev-only-secret-please-override-in-production-0123456789}"
       ttl: 2h
+  registration:
+    # How long a PENDING registration may hold a seat before the scanner
+    # expires it. Product document BR-08; configurable on purpose (R-05).
+    confirm-ttl: 15m
+    timeout-scan-interval: 60s
+    timeout-batch-size: 100
+    rate-limit:
+      # M3 decision: 5 requests per 10 seconds per user and 200 requests per
+      # second across the whole registration endpoint.
+      user-max-requests: 5
+      user-window: 10s
+      global-max-requests: 200
+      global-window: 1s
 
 management:
   endpoints:
