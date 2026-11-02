@@ -1,6 +1,6 @@
 package com.seatflow.user.dto;
 
-import com.seatflow.security.CurrentUser;
+import com.seatflow.user.CurrentUser;
 
 public record AuthResponse(String token,
                            Long userId,

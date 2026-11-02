@@ -4,6 +4,7 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -37,6 +38,18 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining("; "));
         log.warn("validation error: {}", detail);
         return ResponseEntity.badRequest().body(ApiResponse.failure(400, detail));
+    }
+
+    /**
+     * Two concurrent requests can both pass the "already registered?" pre-check;
+     * the loser then hits the unique key. The constraint is the last line of
+     * defence, so the caller must see a conflict rather than a 500.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIntegrity(DataIntegrityViolationException ex) {
+        log.warn("data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.status(409)
+                .body(ApiResponse.failure(409, "request conflicts with an existing record"));
     }
 
     @ExceptionHandler(Exception.class)

@@ -13,8 +13,8 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
-import com.seatflow.security.CurrentUser;
-import com.seatflow.security.CurrentUserProvider;
+import com.seatflow.user.CurrentUser;
+import com.seatflow.user.CurrentUserProvider;
 import com.seatflow.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

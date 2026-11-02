@@ -1,6 +1,5 @@
-package com.seatflow.security;
+package com.seatflow.user;
 
-import com.seatflow.user.UserRole;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

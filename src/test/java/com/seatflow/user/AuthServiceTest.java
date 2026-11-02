@@ -21,8 +21,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.seatflow.common.BusinessException;
-import com.seatflow.security.AppUser;
-import com.seatflow.security.CurrentUser;
 import com.seatflow.security.JwtTokenService;
 import com.seatflow.user.dto.AuthResponse;
 import com.seatflow.user.dto.LoginRequest;

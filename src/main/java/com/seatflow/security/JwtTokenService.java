@@ -9,6 +9,7 @@ import java.util.Optional;
 
 import javax.crypto.SecretKey;
 
+import com.seatflow.user.CurrentUser;
 import com.seatflow.user.UserRole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

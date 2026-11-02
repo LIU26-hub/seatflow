@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Optional;
 
+import com.seatflow.user.CurrentUser;
 import com.seatflow.user.UserRole;
 import org.junit.jupiter.api.Test;
 

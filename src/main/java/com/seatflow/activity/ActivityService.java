@@ -5,8 +5,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.seatflow.activity.dto.CreateActivityRequest;
-import com.seatflow.security.CurrentUser;
-import com.seatflow.security.CurrentUserProvider;
+import com.seatflow.user.CurrentUser;
+import com.seatflow.user.CurrentUserProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -148,5 +148,53 @@ public class ActivityService {
                 .stream()
                 .map(activity -> ActivityResponse.from(activity, now))
                 .toList();
+    }
+
+    @Transactional
+    public int incrementRegistered(Long activityId) {
+        Activity activity = activityRepository.findById(activityId)
+                .orElseThrow(() -> BusinessException.notFound("activity not found: " + activityId));
+        LocalDateTime now = LocalDateTime.now(clock);
+        if (activity.getStatus() != ActivityStatus.PUBLISHED
+                || now.isBefore(activity.getRegistrationStart())
+                || !now.isBefore(activity.getRegistrationEnd())) {
+            throw BusinessException.conflict("activity is not open for registration");
+        }
+        if (activity.getRegisteredCount() >= activity.getCapacity()) {
+            throw BusinessException.conflict("activity is full");
+        }
+        // The conditional UPDATE is the real gate. The checks above only produce a
+        // precise error on the common path; two requests may still race for the
+        // last seat and only one of them sees an affected row here.
+        if (activityRepository.incrementRegisteredCount(activityId) == 0) {
+            throw BusinessException.conflict("activity is full");
+        }
+        return activityRepository.findById(activityId)
+                .orElseThrow(() -> BusinessException.notFound("activity not found: " + activityId))
+                .seatsLeft();
+    }
+
+    /**
+     * Releases one seat. Deliberately does not require the registration window to
+     * still be open: the timeout scanner reclaims seats after the window closes.
+     * Whether a release is legitimate is decided by the caller.
+     */
+    @Transactional
+    public int releaseRegistered(Long activityId) {
+        activityRepository.findById(activityId)
+                .orElseThrow(() -> BusinessException.notFound("activity not found: " + activityId));
+        if (activityRepository.releaseRegisteredCount(activityId) == 0) {
+            throw BusinessException.conflict("no seat to release for activity " + activityId);
+        }
+        return activityRepository.findById(activityId)
+                .orElseThrow(() -> BusinessException.notFound("activity not found: " + activityId))
+                .seatsLeft();
+    }
+
+    @Transactional(readOnly = true)
+    public int getSeatsLeft(Long activityId) {
+        return activityRepository.findById(activityId)
+                .orElseThrow(() -> BusinessException.notFound("activity not found: " + activityId))
+                .seatsLeft();
     }
 }

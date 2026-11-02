@@ -10,8 +10,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seatflow.common.ApiResponse;
-import com.seatflow.security.CurrentUser;
-import com.seatflow.security.CurrentUserProvider;
+import com.seatflow.user.CurrentUser;
+import com.seatflow.user.CurrentUserProvider;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

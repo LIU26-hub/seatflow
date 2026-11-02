@@ -23,6 +23,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(registrationRateLimitInterceptor)
-                .addPathPatterns("/api/activities/*/registrations");
+                .addPathPatterns("/api/registration/*/register");
     }
 }

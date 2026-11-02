@@ -1,6 +1,4 @@
-package com.seatflow.security;
-
-import com.seatflow.user.UserRole;
+package com.seatflow.user;
 
 /**
  * The authenticated caller, stored as the principal of the security context.

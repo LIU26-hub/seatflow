@@ -1,4 +1,4 @@
-package com.seatflow.security;
+package com.seatflow.user;
 
 import java.util.Optional;
 

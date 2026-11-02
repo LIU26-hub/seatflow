@@ -3,7 +3,11 @@ package com.seatflow.activity;
 import java.util.Collection;
 import java.util.List;
 
+
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * Spring Data JPA derives the query from the method name, so no SQL is needed
@@ -18,4 +22,12 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
     List<Activity> findByStatusOrderByRegistrationStartAsc(ActivityStatus status);
 
     List<Activity> findByOrganizerIdAndStatusNotOrderByCreatedAtDesc(Long organizerId, ActivityStatus status);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Activity a SET a.registeredCount = a.registeredCount + 1 WHERE a.id = :activityId and a.registeredCount<a.capacity")
+    int incrementRegisteredCount(@Param("activityId") Long activityId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE Activity a SET a.registeredCount = a.registeredCount - 1 WHERE a.id = :activityId and a.registeredCount>0")
+    int releaseRegisteredCount(@Param("activityId") Long activityId);
 }
