@@ -8,6 +8,9 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Optional;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
 import com.seatflow.user.CurrentUser;
 import com.seatflow.user.UserRole;
 import org.junit.jupiter.api.Test;
@@ -35,9 +38,9 @@ class JwtTokenServiceTest {
     void tokenRoundTripsToTheSameUser() {
         String token = serviceAt(ISSUED_AT).issue(USER);
 
-        Optional<CurrentUser> parsed = serviceAt(ISSUED_AT.plusSeconds(60)).parse(token);
+        Optional<TokenIdentity> parsed = serviceAt(ISSUED_AT.plusSeconds(60)).parse(token);
 
-        assertThat(parsed).contains(USER);
+        assertThat(parsed).contains(new TokenIdentity(42L, "liuminghui"));
     }
 
     @Test
@@ -51,7 +54,8 @@ class JwtTokenServiceTest {
     void tokenIsStillAcceptedJustBeforeExpiry() {
         String token = serviceAt(ISSUED_AT).issue(USER);
 
-        assertThat(serviceAt(ISSUED_AT.plus(TTL).minusSeconds(1)).parse(token)).contains(USER);
+        assertThat(serviceAt(ISSUED_AT.plus(TTL).minusSeconds(1)).parse(token))
+                .contains(new TokenIdentity(42L, "liuminghui"));
     }
 
     @Test
@@ -67,5 +71,15 @@ class JwtTokenServiceTest {
     void garbageTokenIsRejectedWithoutThrowing() {
         assertThat(serviceAt(ISSUED_AT).parse("not-a-jwt")).isEmpty();
         assertThat(serviceAt(ISSUED_AT).parse("")).isEmpty();
+    }
+
+    @Test
+    void tokenDoesNotEmbedTheRole() {
+        String token = serviceAt(ISSUED_AT).issue(USER);
+        String payload = new String(
+                Base64.getUrlDecoder().decode(token.split("\\.")[1]), StandardCharsets.UTF_8);
+
+        assertThat(payload).doesNotContain("role");
+        assertThat(payload).doesNotContain("ORGANIZER");
     }
 }

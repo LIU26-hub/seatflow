@@ -62,7 +62,7 @@ public class RegistrationRateLimiter {
                     "global");
         } catch (RuntimeException ex) {
             log.warn("rate limiter unavailable, allowing registration request: {}", ex.getMessage());
-            return RateLimitDecision.allow();
+            return RateLimitDecision.allow();//redis不可用时会抛异常，在这里被catch后直接放行，保证报名功能正常运行
         }
     }
 

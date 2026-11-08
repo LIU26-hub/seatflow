@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.seatflow.user.CurrentUser;
+import com.seatflow.user.UserRoleResolver;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
@@ -36,6 +37,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtTokenService tokenService;
+    private final UserRoleResolver userRoleResolver;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -43,6 +45,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         bearerToken(request)
                 .flatMap(tokenService::parse)
+                .flatMap(identity -> userRoleResolver.resolve(identity.id())
+                        .map(role -> new CurrentUser(identity.id(), identity.username(), role)))
                 .ifPresent(user -> authenticate(request, user));
         filterChain.doFilter(request, response);
     }

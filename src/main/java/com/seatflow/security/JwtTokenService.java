@@ -10,7 +10,6 @@ import java.util.Optional;
 import javax.crypto.SecretKey;
 
 import com.seatflow.user.CurrentUser;
-import com.seatflow.user.UserRole;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,7 +23,9 @@ import io.jsonwebtoken.security.Keys;
 /**
  * Issues and verifies access tokens.
  *
- * <p>中文批注：令牌里只放三样东西——用户 id（放在标准主题字段 sub）、用户名、角色。
+ * <p>中文批注：令牌里只放用户 id（标准主题字段 sub）与用户名，不放角色。
+ * 原因不是安全，而是时效：角色会变，写进令牌就意味着"改完要等令牌过期才生效"。
+ * 现在令牌只证明身份，角色在每个请求上由 UserRoleResolver 取最新值。
  * 不放密码、不放权限明细：令牌是客户端可见的，任何放进去的内容都等于公开。
  * 签发与校验都走注入的 Clock，因此"两小时后过期"这件事在测试里可以被钉死，
  * 不需要真的等两小时，也不会因为机器时间不同而出现偶发失败。
@@ -44,7 +45,6 @@ public class JwtTokenService {
             "dev-only-secret-please-override-in-production-0123456789";
 
     private static final String CLAIM_USERNAME = "username";
-    private static final String CLAIM_ROLE = "role";
 
     private final SecretKey signingKey;
     private final Duration ttl;
@@ -66,14 +66,13 @@ public class JwtTokenService {
         return Jwts.builder()
                 .subject(String.valueOf(user.id()))
                 .claim(CLAIM_USERNAME, user.username())
-                .claim(CLAIM_ROLE, user.role().name())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(ttl)))
                 .signWith(signingKey)
                 .compact();
     }
 
-    public Optional<CurrentUser> parse(String token) {
+    public Optional<TokenIdentity> parse(String token) {
         try {
             Claims claims = Jwts.parser()
                     .verifyWith(signingKey)
@@ -81,10 +80,9 @@ public class JwtTokenService {
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
-            return Optional.of(new CurrentUser(
+            return Optional.of(new TokenIdentity(
                     Long.valueOf(claims.getSubject()),
-                    claims.get(CLAIM_USERNAME, String.class),
-                    UserRole.valueOf(claims.get(CLAIM_ROLE, String.class))));
+                    claims.get(CLAIM_USERNAME, String.class)));
         } catch (JwtException | IllegalArgumentException ex) {
             // 正常情况：签名不符、已过期、或客户端塞了垃圾串。
             // 用 debug 而不是 warn，否则任何人都能靠刷垃圾令牌把日志写满。

@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -50,6 +51,16 @@ public class GlobalExceptionHandler {
         log.warn("data integrity violation: {}", ex.getMostSpecificCause().getMessage());
         return ResponseEntity.status(409)
                 .body(ApiResponse.failure(409, "request conflicts with an existing record"));
+    }
+
+    /**
+     * Malformed JSON or an unknown enum value is a client error, not a server
+     * error. Without this handler it would fall through to the generic one.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadable(HttpMessageNotReadableException ex) {
+        log.warn("unreadable request body: {}", ex.getMostSpecificCause().getMessage());
+        return ResponseEntity.badRequest().body(ApiResponse.failure(400, "invalid request body"));
     }
 
     @ExceptionHandler(Exception.class)

@@ -30,7 +30,8 @@ spring:
     redis:
       host: "${REDIS_HOST:localhost}"
       port: ${REDIS_PORT:6379}
-      timeout: 2s
+      timeout: 200ms
+      connect-timeout: 500ms
       repositories:
         # Only JPA repositories exist in this project. Turning Redis repository
         # scanning off keeps startup logs clean and avoids Spring trying to
@@ -53,6 +54,11 @@ seatflow:
       # anything but a local database.
       secret: "${JWT_SECRET:dev-only-secret-please-override-in-production-0123456789}"
       ttl: 2h
+    role-cache:
+      # Roles are read from Redis on every authenticated request, so a role
+      # change takes effect on the next request. The TTL is only a safety net
+      # for changes made outside the application.
+      ttl: 30m
   registration:
     # How long a PENDING registration may hold a seat before the scanner
     # expires it. Product document BR-08; configurable on purpose (R-05).
