@@ -46,6 +46,10 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
 
         <!-- JWT: api is compiled against, impl and jackson are only needed at runtime -->
         <dependency>
@@ -111,6 +115,12 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
+                    <!-- Incremental compilation can skip Lombok's annotation
+                         processing for a recompiled entity, which produces a
+                         class without its generated setters and a confusing
+                         NoSuchMethodError at test time. Always compile from
+                         scratch. -->
+                    <useIncrementalCompilation>false</useIncrementalCompilation>
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>

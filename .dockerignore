@@ -1,0 +1,10 @@
+.git
+.github
+.idea
+target
+*.iml
+*.log
+.env
+application-local.yml
+concurrency.js
+README.md

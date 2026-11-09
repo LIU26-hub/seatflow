@@ -43,6 +43,30 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
+  # Notifications are asynchronous and must never block or fail a registration.
+  # The registration transaction writes an outbox row; a separate dispatcher
+  # publishes it here. When the broker is down, publishing fails and the outbox
+  # row stays pending for the next attempt (product document FR-07, R-02).
+  rabbitmq:
+    host: "${RABBITMQ_HOST:localhost}"
+    port: ${RABBITMQ_PORT:5672}
+    username: "${RABBITMQ_USERNAME:seatflow}"
+    password: "${RABBITMQ_PASSWORD:seatflow}"
+    virtual-host: "${RABBITMQ_VHOST:/}"
+    connection-timeout: 5s
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          initial-interval: 500ms
+          max-attempts: 3
+          multiplier: 2
+
 server:
   port: 8080
 
@@ -85,4 +109,6 @@ management:
 logging:
   level:
     com.seatflow: info
-    org.hibernate.SQL: debug
+    # SQL logging stays available for debugging but must stay off the hot path:
+    # it was one of the costs measured in the M3 baseline.
+    org.hibernate.SQL: info
