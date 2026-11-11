@@ -45,11 +45,13 @@ public class RabbitMessagingConfig {
     public static final String NOTIFICATION_DLQ = "seatflow.notification.registration.dlq";
     public static final String NOTIFICATION_DEAD_ROUTING_KEY = "notification.dead";
 
+    // 主交换机，用于路由通知到队列
     @Bean
     public TopicExchange notificationExchange() {
         return new TopicExchange(NOTIFICATION_EXCHANGE, true, false);
     }
 
+    // 主队列，用于接收通知
     @Bean
     public Queue notificationQueue() {
         return QueueBuilder.durable(NOTIFICATION_QUEUE)
@@ -58,6 +60,7 @@ public class RabbitMessagingConfig {
                 .build();
     }
 
+    // 主队列绑定主交换机，用于路由通知到队列
     @Bean
     public Binding notificationBinding(
             @Qualifier("notificationQueue") Queue queue,
@@ -65,16 +68,19 @@ public class RabbitMessagingConfig {
         return BindingBuilder.bind(queue).to(exchange).with(NOTIFICATION_ROUTING_KEY);
     }
 
+    // 死信交换机，用于路由死信通知到 DLQ
     @Bean
     public DirectExchange notificationDeadLetterExchange() {
         return new DirectExchange(NOTIFICATION_DLX, true, false);
     }
 
+    // 死信队列，用于接收死信通知
     @Bean
     public Queue notificationDeadLetterQueue() {
         return QueueBuilder.durable(NOTIFICATION_DLQ).build();
     }
 
+    // 死信队列绑定死信交换机，用于路由死信通知到 DLQ
     @Bean
     public Binding notificationDeadLetterBinding(
             @Qualifier("notificationDeadLetterQueue") Queue queue,

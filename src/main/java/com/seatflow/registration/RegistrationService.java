@@ -4,6 +4,10 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.seatflow.infra.messaging.NotificationEvent;
+import com.seatflow.notification.Notification;
+import com.seatflow.notification.NotificationRepository;
+import com.seatflow.notification.NotificationStatus;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +42,7 @@ public class RegistrationService implements RegistrationExpiryHandler {
     private final Clock clock;
     private final CurrentUserProvider currentUserProvider;
     private final RegistrationProperties registrationProperties;
+    private final NotificationRepository notificationRepository;
 
     @Transactional
     public RegistrationResponse registerActivity(Long activityId) {
@@ -56,6 +61,7 @@ public class RegistrationService implements RegistrationExpiryHandler {
         registration.setConfirmDeadline(
                 LocalDateTime.now(clock).plus(registrationProperties.getConfirmTtl()));
         Registration saved = registrationRepository.save(registration);
+        enqueuePendingNotification(saved, currentUser.id(), activityId);
         return RegistrationResponse.from(saved, seatsLeft);
     }
 
@@ -152,5 +158,22 @@ public class RegistrationService implements RegistrationExpiryHandler {
     private Registration reload(Long registrationId) {
         return registrationRepository.findById(registrationId)
                 .orElseThrow(() -> BusinessException.notFound("registration not found"));
+    }
+
+    /**
+     * Writes the outbox row inside the same transaction as the registration.
+     *
+     * <p>中文批注：通知与报名必须同生共死。写在这里而不是写完后另起一个线程发消息，
+     * 是为了避免"报名成功但通知永远丢了"；真正投递由 NotificationOutboxDispatcher
+     * 扫描 PENDING 行完成。sentAt 只在投递成功后由投递器写入，这里必须留空。
+     */
+    private void enqueuePendingNotification(Registration registration, Long userId, Long activityId) {
+        Notification notification = new Notification();
+        notification.setRegistrationId(registration.getId());
+        notification.setActivityId(activityId);
+        notification.setUserId(userId);
+        notification.setEvent(NotificationEvent.REGISTRATION_PENDING);
+        notification.setStatus(NotificationStatus.PENDING);
+        notificationRepository.save(notification);
     }
 }

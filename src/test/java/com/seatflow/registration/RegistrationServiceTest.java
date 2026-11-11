@@ -28,6 +28,10 @@ import com.seatflow.activity.ActivityStatus;
 import com.seatflow.activity.dto.ActivityResponse;
 import com.seatflow.common.BusinessException;
 import com.seatflow.config.RegistrationProperties;
+import com.seatflow.infra.messaging.NotificationEvent;
+import com.seatflow.notification.Notification;
+import com.seatflow.notification.NotificationRepository;
+import com.seatflow.notification.NotificationStatus;
 import com.seatflow.registration.dto.RegistrationResponse;
 import com.seatflow.user.CurrentUser;
 import com.seatflow.user.CurrentUserProvider;
@@ -50,6 +54,9 @@ class RegistrationServiceTest {
     @Mock
     private CurrentUserProvider currentUserProvider;
 
+    @Mock
+    private NotificationRepository notificationRepository;
+
     private RegistrationService registrationService;
 
     @BeforeEach
@@ -58,7 +65,7 @@ class RegistrationServiceTest {
         RegistrationProperties properties = new RegistrationProperties();
         registrationService = new RegistrationService(
                 registrationRepository, activityService, fixedClock,
-                currentUserProvider, properties);
+                currentUserProvider, properties, notificationRepository);
     }
 
     @Test
@@ -85,6 +92,17 @@ class RegistrationServiceTest {
         assertThat(result.id()).isEqualTo(10L);
         assertThat(result.status()).isEqualTo(RegistrationStatus.PENDING);
         assertThat(result.seatLeft()).isEqualTo(3);
+
+        ArgumentCaptor<Notification> notificationCaptor = ArgumentCaptor.forClass(Notification.class);
+        then(notificationRepository).should().save(notificationCaptor.capture());
+        Notification notification = notificationCaptor.getValue();
+        assertThat(notification.getRegistrationId()).isEqualTo(10L);
+        assertThat(notification.getActivityId()).isEqualTo(ACTIVITY_ID);
+        assertThat(notification.getUserId()).isEqualTo(USER.id());
+        assertThat(notification.getEvent()).isEqualTo(NotificationEvent.REGISTRATION_PENDING);
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
+        // sentAt is written by the dispatcher only after a successful publish.
+        assertThat(notification.getSentAt()).isNull();
     }
 
     @Test
@@ -99,6 +117,7 @@ class RegistrationServiceTest {
 
         then(activityService).shouldHaveNoInteractions();
         then(registrationRepository).should(never()).save(any(Registration.class));
+        then(notificationRepository).shouldHaveNoInteractions();
     }
 
     @Test
@@ -114,6 +133,7 @@ class RegistrationServiceTest {
                 .hasMessage("activity is full");
 
         then(registrationRepository).should(never()).save(any(Registration.class));
+        then(notificationRepository).shouldHaveNoInteractions();
     }
 
     @Test
@@ -129,6 +149,7 @@ class RegistrationServiceTest {
                 .hasMessage("activity is not open for registration");
 
         then(registrationRepository).should(never()).save(any(Registration.class));
+        then(notificationRepository).shouldHaveNoInteractions();
     }
 
     @Test
