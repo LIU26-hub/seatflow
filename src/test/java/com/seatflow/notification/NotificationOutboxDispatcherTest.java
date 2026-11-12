@@ -1,13 +1,16 @@
 package com.seatflow.notification;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -24,14 +27,14 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
+import com.seatflow.config.NotificationProperties;
 import com.seatflow.infra.messaging.NotificationEvent;
 import com.seatflow.infra.messaging.NotificationMessage;
 import com.seatflow.infra.messaging.NotificationPublisher;
 
 /**
- * The dispatcher owns three responsibilities: read a batch of PENDING rows,
- * publish each one, and mark only the successfully published rows as SENT.
- * These tests pin exactly that, including the failure path.
+ * Covers the dispatcher contract: publish only due rows, mark successes SENT,
+ * and apply bounded exponential backoff to failures.
  */
 @ExtendWith(MockitoExtension.class)
 class NotificationOutboxDispatcherTest {
@@ -49,8 +52,6 @@ class NotificationOutboxDispatcherTest {
 
     @BeforeEach
     void setUp() {
-        // A real TransactionTemplate over a no-op transaction manager keeps the
-        // test focused on control flow rather than on Spring plumbing.
         PlatformTransactionManager transactionManager = new PlatformTransactionManager() {
             @Override
             public TransactionStatus getTransaction(TransactionDefinition definition) {
@@ -67,67 +68,92 @@ class NotificationOutboxDispatcherTest {
         };
         Clock clock = Clock.fixed(NOW.atZone(ZONE).toInstant(), ZONE);
         dispatcher = new NotificationOutboxDispatcher(
-                notificationRepository, publisher, clock, transactionManager);
+                notificationRepository, publisher, new NotificationProperties(),
+                clock, transactionManager);
     }
 
     @Test
-    void publishesPendingRowsAndMarksThemSent() {
-        given(notificationRepository.findByStatusOrderByIdAsc(
-                eq(NotificationStatus.PENDING), any(Pageable.class)))
-                .willReturn(List.of(notification(1L)));
+    void publishesDueRowsAndMarksThemSent() {
+        givenDue(notification(1L, 0));
 
         dispatcher.dispatchPending();
 
         ArgumentCaptor<NotificationMessage> message = ArgumentCaptor.forClass(NotificationMessage.class);
         then(publisher).should().publish(message.capture());
-        assertThatMessage(message.getValue());
+        assertThat(message.getValue().notificationId()).isEqualTo(1L);
+        assertThat(message.getValue().registrationId()).isEqualTo(11L);
+        assertThat(message.getValue().activityId()).isEqualTo(21L);
+        assertThat(message.getValue().userId()).isEqualTo(31L);
+        assertThat(message.getValue().event()).isEqualTo(NotificationEvent.REGISTRATION_PENDING);
 
         then(notificationRepository).should().markSent(
                 eq(1L), eq(NotificationStatus.SENT), eq(NotificationStatus.PENDING), eq(NOW));
     }
 
     @Test
-    void keepsRowPendingWhenPublishingFails() {
-        given(notificationRepository.findByStatusOrderByIdAsc(
-                eq(NotificationStatus.PENDING), any(Pageable.class)))
-                .willReturn(List.of(notification(1L)));
-        org.mockito.BDDMockito.willThrow(new IllegalStateException("broker down"))
+    void schedulesFirstRetryAfterBaseDelay() {
+        givenDue(notification(1L, 0));
+        willThrow(new IllegalStateException("broker down"))
                 .given(publisher).publish(any(NotificationMessage.class));
 
         dispatcher.dispatchPending();
 
-        then(notificationRepository).should(never()).markSent(
-                anyLong(), any(), any(), any());
+        then(notificationRepository).should().scheduleRetry(
+                eq(1L), eq(NotificationStatus.PENDING), eq(1),
+                eq(NOW.plus(Duration.ofSeconds(5))), eq("broker down"));
+        then(notificationRepository).should(never()).markFailed(any(), any(), any(), anyInt(), any());
     }
 
     @Test
-    void continuesWithNextRowAfterOneFailure() {
-        given(notificationRepository.findByStatusOrderByIdAsc(
-                eq(NotificationStatus.PENDING), any(Pageable.class)))
-                .willReturn(List.of(notification(1L), notification(2L)));
-        org.mockito.BDDMockito.willThrow(new IllegalStateException("broker hiccup"))
-                .willDoNothing()
+    void doublesTheDelayOnEachFailure() {
+        givenDue(notification(1L, 2));
+        willThrow(new IllegalStateException("broker down"))
+                .given(publisher).publish(any(NotificationMessage.class));
+
+        dispatcher.dispatchPending();
+
+        // Third failure: 5s * 2^2 = 20s.
+        then(notificationRepository).should().scheduleRetry(
+                eq(1L), eq(NotificationStatus.PENDING), eq(3),
+                eq(NOW.plusSeconds(20)), eq("broker down"));
+    }
+
+    @Test
+    void movesRowToFailedOnceTheRetryBudgetIsExhausted() {
+        givenDue(notification(1L, 4));
+        willThrow(new IllegalStateException("broker down"))
+                .given(publisher).publish(any(NotificationMessage.class));
+
+        dispatcher.dispatchPending();
+
+        then(notificationRepository).should().markFailed(
+                eq(1L), eq(NotificationStatus.FAILED), eq(NotificationStatus.PENDING),
+                eq(5), eq("broker down"));
+        then(notificationRepository).should(never()).scheduleRetry(any(), any(), anyInt(), any(), any());
+    }
+
+    @Test
+    void continuesWithTheNextRowAfterOneFailure() {
+        givenDue(notification(1L, 0), notification(2L, 0));
+        willThrow(new IllegalStateException("hiccup"))
                 .given(publisher).publish(any(NotificationMessage.class));
 
         dispatcher.dispatchPending();
 
         then(publisher).should(org.mockito.Mockito.times(2)).publish(any(NotificationMessage.class));
-        then(notificationRepository).should().markSent(
-                eq(2L), eq(NotificationStatus.SENT), eq(NotificationStatus.PENDING), eq(NOW));
-        then(notificationRepository).should(never()).markSent(
-                eq(1L), any(), any(), any());
+        then(notificationRepository).should().scheduleRetry(
+                eq(1L), eq(NotificationStatus.PENDING), eq(1), any(), eq("hiccup"));
+        then(notificationRepository).should().scheduleRetry(
+                eq(2L), eq(NotificationStatus.PENDING), eq(1), any(), eq("hiccup"));
     }
 
-    private void assertThatMessage(NotificationMessage message) {
-        org.assertj.core.api.Assertions.assertThat(message.notificationId()).isEqualTo(1L);
-        org.assertj.core.api.Assertions.assertThat(message.registrationId()).isEqualTo(11L);
-        org.assertj.core.api.Assertions.assertThat(message.activityId()).isEqualTo(21L);
-        org.assertj.core.api.Assertions.assertThat(message.userId()).isEqualTo(31L);
-        org.assertj.core.api.Assertions.assertThat(message.event())
-                .isEqualTo(NotificationEvent.REGISTRATION_PENDING);
+    private void givenDue(Notification... notifications) {
+        given(notificationRepository.findByStatusAndNextAttemptAtLessThanEqualOrderByIdAsc(
+                eq(NotificationStatus.PENDING), eq(NOW), any(Pageable.class)))
+                .willReturn(List.of(notifications));
     }
 
-    private Notification notification(Long id) {
+    private Notification notification(Long id, int attempts) {
         Notification notification = new Notification();
         notification.setId(id);
         notification.setRegistrationId(10L + id);
@@ -135,6 +161,8 @@ class NotificationOutboxDispatcherTest {
         notification.setUserId(30L + id);
         notification.setEvent(NotificationEvent.REGISTRATION_PENDING);
         notification.setStatus(NotificationStatus.PENDING);
+        notification.setAttempts(attempts);
+        notification.setNextAttemptAt(NOW.minusSeconds(1));
         return notification;
     }
 }

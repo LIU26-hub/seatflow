@@ -97,6 +97,16 @@ seatflow:
       global-max-requests: 200
       global-window: 1s
 
+  notification:
+    # The dispatcher runs every 5s and publishes at most 100 due rows per tick.
+    dispatch-interval: 5s
+    batch-size: 100
+    # Bounded exponential backoff: 5s, 10s, 20s, 40s ... capped at 5m.
+    # The fifth failed attempt moves the row to FAILED instead of retrying.
+    max-attempts: 5
+    base-delay: 5s
+    max-delay: 5m
+
 management:
   endpoints:
     web:

@@ -17,7 +17,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
      * Dispatcher scans pending rows oldest first, so a batch never starves the
      * earliest notifications and the order is deterministic in tests.
      */
-    List<Notification> findByStatusOrderByIdAsc(NotificationStatus status, Pageable pageable);
+    List<Notification> findByStatusAndNextAttemptAtLessThanEqualOrderByIdAsc(
+            NotificationStatus status, LocalDateTime due, Pageable pageable);
 
     /** 站内信列表：用户自己的通知，按时间倒序。 */
     @Query("""
@@ -39,13 +40,49 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
            update Notification n
-              set n.status = :target, n.sentAt = :now
+              set n.status = :target, n.sentAt = :now,
+                  n.nextAttemptAt = null, n.lastError = null
             where n.id = :id and n.status = :expected
            """)
     int markSent(@Param("id") Long id,
                  @Param("target") NotificationStatus target,
                  @Param("expected") NotificationStatus expected,
                  @Param("now") LocalDateTime now);
+
+    /**
+     * Keeps the row PENDING and pushes the next attempt into the future.
+     * Conditional on PENDING so a row that was delivered in the meantime is
+     * never dragged back.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+           update Notification n
+              set n.attempts = :attempts,
+                  n.nextAttemptAt = :nextAttemptAt,
+                  n.lastError = :lastError
+            where n.id = :id and n.status = :expected
+           """)
+    int scheduleRetry(@Param("id") Long id,
+                      @Param("expected") NotificationStatus expected,
+                      @Param("attempts") int attempts,
+                      @Param("nextAttemptAt") LocalDateTime nextAttemptAt,
+                      @Param("lastError") String lastError);
+
+    /** Terminal state once the retry budget is exhausted. */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+           update Notification n
+              set n.status = :target,
+                  n.attempts = :attempts,
+                  n.lastError = :lastError,
+                  n.nextAttemptAt = null
+            where n.id = :id and n.status = :expected
+           """)
+    int markFailed(@Param("id") Long id,
+                   @Param("target") NotificationStatus target,
+                   @Param("expected") NotificationStatus expected,
+                   @Param("attempts") int attempts,
+                   @Param("lastError") String lastError);
 
     /**
      * 消费落地：PENDING/SENT -> DELIVERED。幂等核心——重复消息命中同一行时，

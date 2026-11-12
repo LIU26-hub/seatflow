@@ -169,6 +169,11 @@ class RegistrationServiceTest {
 
         assertThat(result.status()).isEqualTo(RegistrationStatus.CONFIRMED);
         assertThat(result.seatLeft()).isEqualTo(2);
+
+        Notification notification = captureSingleNotification();
+        assertThat(notification.getEvent()).isEqualTo(NotificationEvent.REGISTRATION_CONFIRMED);
+        assertThat(notification.getStatus()).isEqualTo(NotificationStatus.PENDING);
+        assertThat(notification.getRegistrationId()).isEqualTo(10L);
     }
 
     @Test
@@ -205,6 +210,10 @@ class RegistrationServiceTest {
         assertThat(result.status()).isEqualTo(RegistrationStatus.CANCELLED);
         assertThat(result.seatLeft()).isEqualTo(2);
         then(activityService).should().releaseRegistered(ACTIVITY_ID);
+
+        Notification notification = captureSingleNotification();
+        assertThat(notification.getEvent()).isEqualTo(NotificationEvent.REGISTRATION_CANCELLED);
+        assertThat(notification.getRegistrationId()).isEqualTo(10L);
     }
 
     @Test
@@ -239,6 +248,11 @@ class RegistrationServiceTest {
 
         assertThat(expired).isEqualTo(1);
         then(activityService).should().releaseRegistered(ACTIVITY_ID);
+
+        Notification notification = captureSingleNotification();
+        assertThat(notification.getEvent()).isEqualTo(NotificationEvent.REGISTRATION_EXPIRED);
+        assertThat(notification.getUserId()).isEqualTo(USER.id());
+        assertThat(notification.getActivityId()).isEqualTo(ACTIVITY_ID);
     }
 
     @Test
@@ -271,5 +285,11 @@ class RegistrationServiceTest {
         return new ActivityResponse(
                 ACTIVITY_ID, 7L, "AI meetup", "desc", "Main hall",
                 100, 10, 90, true, NOW.minusDays(1), NOW.plusDays(1), ActivityStatus.PUBLISHED);
+    }
+
+    private Notification captureSingleNotification() {
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+        then(notificationRepository).should().save(captor.capture());
+        return captor.getValue();
     }
 }

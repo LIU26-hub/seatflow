@@ -41,6 +41,15 @@ public class Notification {
     @Column(name = "status", nullable = false, length = 32)
     private NotificationStatus status = NotificationStatus.PENDING;
 
+    @Column(name = "attempts", nullable = false)
+    private int attempts;
+
+    @Column(name = "next_attempt_at")
+    private LocalDateTime nextAttemptAt;
+
+    @Column(name = "last_error", length = 512)
+    private String lastError;
+
     @Column(name = "sent_at")
     private LocalDateTime sentAt;
 

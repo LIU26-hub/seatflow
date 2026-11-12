@@ -9,5 +9,8 @@ package com.seatflow.infra.messaging;
  * "registration_pending" 而在运行时静默丢消息。
  */
 public enum NotificationEvent {
-    REGISTRATION_PENDING
+    REGISTRATION_PENDING,
+    REGISTRATION_CONFIRMED,
+    REGISTRATION_CANCELLED,
+    REGISTRATION_EXPIRED
 }

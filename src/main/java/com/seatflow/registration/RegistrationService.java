@@ -61,7 +61,8 @@ public class RegistrationService implements RegistrationExpiryHandler {
         registration.setConfirmDeadline(
                 LocalDateTime.now(clock).plus(registrationProperties.getConfirmTtl()));
         Registration saved = registrationRepository.save(registration);
-        enqueuePendingNotification(saved, currentUser.id(), activityId);
+        enqueueNotification(saved.getId(), currentUser.id(), activityId,
+                NotificationEvent.REGISTRATION_PENDING);
         return RegistrationResponse.from(saved, seatsLeft);
     }
 
@@ -76,6 +77,8 @@ public class RegistrationService implements RegistrationExpiryHandler {
         if (updated == 0) {
             throw confirmFailure(registration.getId());
         }
+        enqueueNotification(registration.getId(), currentUser.id(), activityId,
+                NotificationEvent.REGISTRATION_CONFIRMED);
         return responseOf(registration.getId(), activityId);
     }
 
@@ -98,6 +101,8 @@ public class RegistrationService implements RegistrationExpiryHandler {
         }
         // Only the caller whose state transition won may release the seat.
         int seatsLeft = activityService.releaseRegistered(activityId);
+        enqueueNotification(registration.getId(), currentUser.id(), activityId,
+                NotificationEvent.REGISTRATION_CANCELLED);
         return RegistrationResponse.from(reload(registration.getId()), seatsLeft);
     }
 
@@ -129,6 +134,11 @@ public class RegistrationService implements RegistrationExpiryHandler {
                     List.of(RegistrationStatus.PENDING));
             if (updated == 1) {
                 activityService.releaseRegistered(registration.getActivityId());
+                enqueueNotification(
+                        registration.getId(),
+                        registration.getUserId(),
+                        registration.getActivityId(),
+                        NotificationEvent.REGISTRATION_EXPIRED);
                 expired++;
             }
         }
@@ -167,13 +177,18 @@ public class RegistrationService implements RegistrationExpiryHandler {
      * 是为了避免"报名成功但通知永远丢了"；真正投递由 NotificationOutboxDispatcher
      * 扫描 PENDING 行完成。sentAt 只在投递成功后由投递器写入，这里必须留空。
      */
-    private void enqueuePendingNotification(Registration registration, Long userId, Long activityId) {
+    private void enqueueNotification(Long registrationId, Long userId, Long activityId,
+                                     NotificationEvent event) {
         Notification notification = new Notification();
-        notification.setRegistrationId(registration.getId());
+        notification.setRegistrationId(registrationId);
         notification.setActivityId(activityId);
         notification.setUserId(userId);
-        notification.setEvent(NotificationEvent.REGISTRATION_PENDING);
+        notification.setEvent(event);
         notification.setStatus(NotificationStatus.PENDING);
+        notification.setAttempts(0);
+        // A fresh outbox row is due immediately; the dispatcher only selects
+        // rows whose nextAttemptAt has already passed.
+        notification.setNextAttemptAt(LocalDateTime.now(clock));
         notificationRepository.save(notification);
     }
 }
