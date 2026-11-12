@@ -51,7 +51,7 @@ public class RabbitMessagingConfig {
         return new TopicExchange(NOTIFICATION_EXCHANGE, true, false);
     }
 
-    // 主队列，用于接收通知
+    // 主队列，用于接收通知，指定死信交换机和路由键
     @Bean
     public Queue notificationQueue() {
         return QueueBuilder.durable(NOTIFICATION_QUEUE)

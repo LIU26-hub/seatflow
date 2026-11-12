@@ -1,5 +1,6 @@
 package com.seatflow.notification;
 
+import com.seatflow.notification.dto.NotificationResponse;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -19,7 +20,17 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByStatusOrderByIdAsc(NotificationStatus status, Pageable pageable);
 
     /** 站内信列表：用户自己的通知，按时间倒序。 */
-    List<Notification> findByUserIdOrderByCreatedAtDesc(Long userId);
+    @Query("""
+           select new com.seatflow.notification.dto.NotificationResponse(
+                  n.id,n.event,n.registrationId,n.createdAt,n.status, 
+                  a.id, a.title, a.location, a.registrationStart, a.registrationEnd)
+             from Notification n, Activity a
+            where n.userId = :userId
+              and a.id = n.activityId
+              and n.status = :status
+            order by n.createdAt desc
+           """)
+    List<NotificationResponse> findByUserIdAndStatusOrderByCreatedAtDesc(@Param("userId") Long userId, @Param("status") NotificationStatus status);
 
     /**
      * 发件箱阶段：PENDING -> SENT。条件更新保证并发安全，返回影响行数。
