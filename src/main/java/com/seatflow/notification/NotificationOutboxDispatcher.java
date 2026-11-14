@@ -100,6 +100,7 @@ public class NotificationOutboxDispatcher {
         return delay.compareTo(properties.getMaxDelay()) > 0 ? properties.getMaxDelay() : delay;
     }
 
+
     private String truncate(String message) {
         if (message == null || message.isBlank()) {
             return "unknown publish failure";

@@ -42,7 +42,8 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(requests -> requests
-                        .requestMatchers("/api/auth/**", "/api/health", "/actuator/health").permitAll()
+                .requestMatchers("/api/auth/**", "/api/health",
+                                 "/actuator/health", "/actuator/prometheus").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(authenticationEntryPoint)

@@ -28,7 +28,9 @@ import com.seatflow.activity.ActivityStatus;
 import com.seatflow.activity.dto.ActivityResponse;
 import com.seatflow.common.BusinessException;
 import com.seatflow.config.RegistrationProperties;
+import com.seatflow.infra.gate.SeatGate;
 import com.seatflow.infra.messaging.NotificationEvent;
+import com.seatflow.metrics.SeatFlowMetrics;
 import com.seatflow.notification.Notification;
 import com.seatflow.notification.NotificationRepository;
 import com.seatflow.notification.NotificationStatus;
@@ -57,6 +59,12 @@ class RegistrationServiceTest {
     @Mock
     private NotificationRepository notificationRepository;
 
+    @Mock
+    private SeatGate seatGate;
+
+    @Mock
+    private SeatFlowMetrics metrics;
+
     private RegistrationService registrationService;
 
     @BeforeEach
@@ -65,7 +73,7 @@ class RegistrationServiceTest {
         RegistrationProperties properties = new RegistrationProperties();
         registrationService = new RegistrationService(
                 registrationRepository, activityService, fixedClock,
-                currentUserProvider, properties, notificationRepository);
+                currentUserProvider, properties, notificationRepository, seatGate, metrics);
     }
 
     @Test
@@ -73,6 +81,8 @@ class RegistrationServiceTest {
         given(currentUserProvider.require()).willReturn(USER);
         given(registrationRepository.existsByActivityIdAndUserIdAndStatusIn(anyLong(), anyLong(), any()))
                 .willReturn(false);
+        given(activityService.getSeatsLeft(ACTIVITY_ID)).willReturn(10);
+        given(seatGate.tryReserve(ACTIVITY_ID, 10)).willReturn(true);
         given(activityService.incrementRegistered(ACTIVITY_ID)).willReturn(3);
         given(registrationRepository.save(any(Registration.class))).willAnswer(invocation -> {
             Registration saved = invocation.getArgument(0);
@@ -118,6 +128,7 @@ class RegistrationServiceTest {
         then(activityService).shouldHaveNoInteractions();
         then(registrationRepository).should(never()).save(any(Registration.class));
         then(notificationRepository).shouldHaveNoInteractions();
+        then(metrics).should().registrationRejected("duplicate");
     }
 
     @Test
@@ -125,6 +136,8 @@ class RegistrationServiceTest {
         given(currentUserProvider.require()).willReturn(USER);
         given(registrationRepository.existsByActivityIdAndUserIdAndStatusIn(anyLong(), anyLong(), any()))
                 .willReturn(false);
+        given(activityService.getSeatsLeft(ACTIVITY_ID)).willReturn(0);
+        given(seatGate.tryReserve(ACTIVITY_ID, 0)).willReturn(true);
         given(activityService.incrementRegistered(ACTIVITY_ID))
                 .willThrow(BusinessException.conflict("activity is full"));
 
@@ -141,6 +154,8 @@ class RegistrationServiceTest {
         given(currentUserProvider.require()).willReturn(USER);
         given(registrationRepository.existsByActivityIdAndUserIdAndStatusIn(anyLong(), anyLong(), any()))
                 .willReturn(false);
+        given(activityService.getSeatsLeft(ACTIVITY_ID)).willReturn(10);
+        given(seatGate.tryReserve(ACTIVITY_ID, 10)).willReturn(true);
         given(activityService.incrementRegistered(ACTIVITY_ID))
                 .willThrow(BusinessException.conflict("activity is not open for registration"));
 

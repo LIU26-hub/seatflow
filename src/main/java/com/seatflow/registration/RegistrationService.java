@@ -10,6 +10,8 @@ import com.seatflow.notification.NotificationRepository;
 import com.seatflow.notification.NotificationStatus;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.seatflow.activity.ActivityService;
@@ -17,6 +19,8 @@ import com.seatflow.activity.dto.ActivityResponse;
 import com.seatflow.common.BusinessException;
 import com.seatflow.config.RegistrationProperties;
 import com.seatflow.infra.scheduling.RegistrationExpiryHandler;
+import com.seatflow.infra.gate.SeatGate;
+import com.seatflow.metrics.SeatFlowMetrics;
 import com.seatflow.registration.dto.RegistrationResponse;
 import com.seatflow.user.CurrentUser;
 import com.seatflow.user.CurrentUserProvider;
@@ -43,27 +47,43 @@ public class RegistrationService implements RegistrationExpiryHandler {
     private final CurrentUserProvider currentUserProvider;
     private final RegistrationProperties registrationProperties;
     private final NotificationRepository notificationRepository;
+    private final SeatGate seatGate;
+    private final SeatFlowMetrics metrics;
 
     @Transactional
     public RegistrationResponse registerActivity(Long activityId) {
         CurrentUser currentUser = currentUserProvider.require();
         if (registrationRepository.existsByActivityIdAndUserIdAndStatusIn(
                 activityId, currentUser.id(), ACTIVE_STATUSES)) {
+            metrics.registrationRejected("duplicate");
             throw BusinessException.conflict("you already have an active registration");
         }
 
-        int seatsLeft = activityService.incrementRegistered(activityId);
+        int seatsLeftSnapshot = activityService.getSeatsLeft(activityId);
+        if (!seatGate.tryReserve(activityId, seatsLeftSnapshot)) {
+            metrics.registrationRejected("sold_out");
+            throw BusinessException.conflict("activity is full");
+        }
+        releaseSeatOnRollback(activityId);
 
-        Registration registration = new Registration();
-        registration.setActivityId(activityId);
-        registration.setUserId(currentUser.id());
-        registration.setStatus(RegistrationStatus.PENDING);
-        registration.setConfirmDeadline(
-                LocalDateTime.now(clock).plus(registrationProperties.getConfirmTtl()));
-        Registration saved = registrationRepository.save(registration);
-        enqueueNotification(saved.getId(), currentUser.id(), activityId,
-                NotificationEvent.REGISTRATION_PENDING);
-        return RegistrationResponse.from(saved, seatsLeft);
+        try {
+            int seatsLeft = activityService.incrementRegistered(activityId);
+
+            Registration registration = new Registration();
+            registration.setActivityId(activityId);
+            registration.setUserId(currentUser.id());
+            registration.setStatus(RegistrationStatus.PENDING);
+            registration.setConfirmDeadline(
+                    LocalDateTime.now(clock).plus(registrationProperties.getConfirmTtl()));
+            Registration saved = registrationRepository.save(registration);
+            enqueueNotification(saved.getId(), currentUser.id(), activityId,
+                    NotificationEvent.REGISTRATION_PENDING);
+            metrics.registrationSucceeded();
+            return RegistrationResponse.from(saved, seatsLeft);
+        } catch (BusinessException ex) {
+            metrics.registrationRejected(reasonOf(ex));
+            throw ex;
+        }
     }
 
     @Transactional
@@ -101,6 +121,7 @@ public class RegistrationService implements RegistrationExpiryHandler {
         }
         // Only the caller whose state transition won may release the seat.
         int seatsLeft = activityService.releaseRegistered(activityId);
+        releaseSeatAfterCommit(activityId);
         enqueueNotification(registration.getId(), currentUser.id(), activityId,
                 NotificationEvent.REGISTRATION_CANCELLED);
         return RegistrationResponse.from(reload(registration.getId()), seatsLeft);
@@ -134,6 +155,7 @@ public class RegistrationService implements RegistrationExpiryHandler {
                     List.of(RegistrationStatus.PENDING));
             if (updated == 1) {
                 activityService.releaseRegistered(registration.getActivityId());
+                releaseSeatAfterCommit(registration.getActivityId());
                 enqueueNotification(
                         registration.getId(),
                         registration.getUserId(),
@@ -168,6 +190,50 @@ public class RegistrationService implements RegistrationExpiryHandler {
     private Registration reload(Long registrationId) {
         return registrationRepository.findById(registrationId)
                 .orElseThrow(() -> BusinessException.notFound("registration not found"));
+    }
+
+    private String reasonOf(BusinessException ex) {
+        String message = ex.getMessage() == null ? "" : ex.getMessage();
+        if (message.contains("full")) {
+            return "sold_out";
+        }
+        if (message.contains("not open")) {
+            return "window_closed";
+        }
+        return "conflict";
+    }
+
+    /**
+     * Returns the gate reservation when the transaction does not commit.
+     * A synchronization callback also covers commit failures, which a catch
+     * block would miss.
+     */
+    private void releaseSeatOnRollback(Long activityId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    seatGate.release(activityId);
+                }
+            }
+        });
+    }
+
+    /** Seat increases reach Redis only after the database transaction commits. */
+    private void releaseSeatAfterCommit(Long activityId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            seatGate.release(activityId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                seatGate.release(activityId);
+            }
+        });
     }
 
     /**

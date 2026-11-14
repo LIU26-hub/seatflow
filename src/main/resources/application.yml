@@ -107,14 +107,22 @@ seatflow:
     base-delay: 5s
     max-delay: 5m
 
+  seat-gate:
+    # Redis pre-reservation gateway. The database conditional UPDATE remains the
+    # source of truth; this key only keeps rejected requests away from the hot row.
+    key-ttl: 24h
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: always
+  metrics:
+    tags:
+      application: seatflow
 
 logging:
   level:

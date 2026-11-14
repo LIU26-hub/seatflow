@@ -1,0 +1,57 @@
+{
+  "uid": "seatflow-overview",
+  "title": "SeatFlow 报名链路总览",
+  "timezone": "browser",
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "报名接口 QPS",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_server_requests_seconds_count{uri=\"/api/registration/{activityId}/register\"}[1m]))"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "报名接口 P95 延迟（秒）",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{uri=\"/api/registration/{activityId}/register\"}[5m])) by (le))"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "报名业务结果（5 分钟增量）",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (outcome) (increase(seatflow_registration_total[5m]))" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "通知发件箱积压",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "seatflow_notification_outbox" }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

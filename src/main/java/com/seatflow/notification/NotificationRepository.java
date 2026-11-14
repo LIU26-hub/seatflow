@@ -33,6 +33,8 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
            """)
     List<NotificationResponse> findByUserIdAndStatusOrderByCreatedAtDesc(@Param("userId") Long userId, @Param("status") NotificationStatus status);
 
+    long countByStatus(NotificationStatus status);
+
     /**
      * 发件箱阶段：PENDING -> SENT。条件更新保证并发安全，返回影响行数。
      * 返回 0 说明行已被消费端抢先改成 DELIVERED（竞态下的正常结果）。
