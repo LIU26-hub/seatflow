@@ -6,4 +6,6 @@ scrape_configs:
   - job_name: seatflow
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: ["app:8080"]
+      # host.docker.internal resolves to the Windows host on Docker Desktop,
+      # so the same config scrapes the containerised app and a locally run app.
+      - targets: ["host.docker.internal:8080"]

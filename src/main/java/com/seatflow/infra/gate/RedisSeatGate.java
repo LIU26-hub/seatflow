@@ -51,15 +51,21 @@ public class RedisSeatGate implements SeatGate {
 
     private final StringRedisTemplate redisTemplate;
     private final Duration keyTtl;
+    private final boolean enabled;
 
     public RedisSeatGate(StringRedisTemplate redisTemplate,
-                         @Value("${seatflow.seat-gate.key-ttl:24h}") Duration keyTtl) {
+                         @Value("${seatflow.seat-gate.key-ttl:24h}") Duration keyTtl,
+                         @Value("${seatflow.seat-gate.enabled:true}") boolean enabled) {
         this.redisTemplate = redisTemplate;
         this.keyTtl = keyTtl;
+        this.enabled = enabled;
     }
 
     @Override
     public boolean tryReserve(Long activityId, int seatsLeftSnapshot) {
+        if (!enabled) {
+            return true;
+        }
         try {
             Long remaining = redisTemplate.execute(
                     RESERVE,
@@ -75,6 +81,9 @@ public class RedisSeatGate implements SeatGate {
 
     @Override
     public void release(Long activityId) {
+        if (!enabled) {
+            return;
+        }
         try {
             redisTemplate.execute(RELEASE, List.of(key(activityId)));
         } catch (RuntimeException ex) {

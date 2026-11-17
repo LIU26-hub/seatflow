@@ -5,7 +5,7 @@ spring:
   datasource:
     url: "${DB_URL:jdbc:mysql://localhost:3306/seatflow?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8}"
     username: "${DB_USERNAME:root}"
-    password: "${DB_PASSWORD:}"
+    password: "${DB_PASSWORD:1234}"
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   # The schema is owned by Flyway. Hibernate only verifies that the entities
@@ -111,6 +111,7 @@ seatflow:
     # Redis pre-reservation gateway. The database conditional UPDATE remains the
     # source of truth; this key only keeps rejected requests away from the hot row.
     key-ttl: 24h
+    enabled: true
 
 management:
   endpoints:
