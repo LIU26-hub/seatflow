@@ -1,5 +1,7 @@
 package com.seatflow.infra.messaging;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Seam between the notification outbox and the broker.
  *
@@ -13,6 +15,8 @@ public interface NotificationPublisher {
     /**
      * Publishes one notification. Implementations must not swallow failures:
      * the caller relies on the exception to keep the outbox row pending.
+     *
+     * @return
      */
-    void publish(NotificationMessage message);
+    CompletableFuture<Boolean> publish(NotificationMessage message);
 }

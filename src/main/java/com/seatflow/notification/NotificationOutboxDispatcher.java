@@ -14,6 +14,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Component
@@ -47,18 +49,29 @@ public class NotificationOutboxDispatcher {
                         PageRequest.of(0, Math.max(properties.getBatchSize(), 1)));
 
         for (Notification notification : pending) {
+            CompletableFuture<Boolean> confirmed;
             try {
-                publisher.publish(toMessage(notification));
-                // The update needs its own transaction, and that transaction must
-                // not stay open while the broker call above is in flight.
+                confirmed = publisher.publish(toMessage(notification));
+            } catch (RuntimeException ex) {
+                handlePublishFailure(notification, ex);
+                continue;
+            }
+            // Mark SENT only after the broker confirms the publish. The update
+            // runs in its own short transaction on the confirm thread, never
+            // while a broker call is in flight.
+            confirmed.whenComplete((acked, failure) -> {
+                if (failure != null || !Boolean.TRUE.equals(acked)) {
+                    handlePublishFailure(notification, failure instanceof RuntimeException re
+                            ? re
+                            : new IllegalStateException("broker nacked the publish"));
+                    return;
+                }
                 transactionTemplate.executeWithoutResult(status -> notificationRepository.markSent(
                         notification.getId(),
                         NotificationStatus.SENT,
                         NotificationStatus.PENDING,
                         LocalDateTime.now(clock)));
-            } catch (RuntimeException ex) {
-                handlePublishFailure(notification, ex);
-            }
+            });
         }
     }
 

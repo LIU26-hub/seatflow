@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -75,6 +76,8 @@ class NotificationOutboxDispatcherTest {
     @Test
     void publishesDueRowsAndMarksThemSent() {
         givenDue(notification(1L, 0));
+        given(publisher.publish(any(NotificationMessage.class)))
+                .willReturn(CompletableFuture.completedFuture(true));
 
         dispatcher.dispatchPending();
 
