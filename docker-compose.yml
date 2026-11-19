@@ -24,7 +24,9 @@ services:
       start_period: 30s
 
   redis:
-    image: redis:7-alpine
+    # Redis Stack bundles RediSearch, which provides the vector index used by
+    # the knowledge base. Plain redis:7 does not include it.
+    image: redis/redis-stack-server:latest
     container_name: seatflow-redis
     ports:
       - "6379:6379"

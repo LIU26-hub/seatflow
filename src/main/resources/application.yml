@@ -43,6 +43,25 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
+  ai:
+    openai:
+      # SiliconFlow exposes an OpenAI compatible API.
+      base-url: "${SILICONFLOW_BASE_URL:https://api.siliconflow.cn}"
+      api-key: "${SILICONFLOW_API_KEY:}"
+      chat:
+        options:
+          model: "${SILICONFLOW_CHAT_MODEL:deepseek-ai/DeepSeek-V3}"
+          temperature: 0.2
+      embedding:
+        options:
+          model: "${SILICONFLOW_EMBEDDING_MODEL:BAAI/bge-m3}"
+    vectorstore:
+      redis:
+        uri: "${REDIS_URI:redis://localhost:6379}"
+        index: "seatflow-kb"
+        prefix: "seatflow:kb:"
+        initialize-schema: true
+
   # Notifications are asynchronous and must never block or fail a registration.
   # The registration transaction writes an outbox row; a separate dispatcher
   # publishes it here. When the broker is down, publishing fails and the outbox
@@ -111,6 +130,11 @@ seatflow:
     # Redis pre-reservation gateway. The database conditional UPDATE remains the
     # source of truth; this key only keeps rejected requests away from the hot row.
     key-ttl: 24h
+
+  qa:
+    top-k: 5
+    similarity-threshold: 0.35
+    knowledge-path: "classpath:knowledge/seatflow-knowledge.md"
     enabled: true
 
 management:
