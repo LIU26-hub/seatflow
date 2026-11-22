@@ -71,10 +71,11 @@ public class QaService {
         int index = 1;
         for (Document document : matches) {
             String title = String.valueOf(document.getMetadata().getOrDefault("title", "knowledge"));
-            knowledge.append('[').append(index).append("] ").append(title)
+            String label = String.valueOf(index);
+            knowledge.append('[').append(label).append("] ").append(title)
                     .append('\n').append(document.getText()).append("\n\n");
             citations.add(new QaCitation(
-                    index,
+                    label,
                     title,
                     String.valueOf(document.getMetadata().getOrDefault("sourceType", "NOTE")),
                     String.valueOf(document.getMetadata().getOrDefault("sourceId", ""))));
@@ -82,8 +83,14 @@ public class QaService {
         }
 
         if (request.activityId() != null) {
-            activityRepository.findById(request.activityId()).ifPresent(activity ->
-                    knowledge.append("[活动信息] ").append(activityFacts(activity)).append('\n'));
+            activityRepository.findById(request.activityId()).ifPresent(activity -> {
+                knowledge.append("[A] 活动信息\n").append(activityFacts(activity)).append('\n');
+                citations.add(new QaCitation(
+                        "A",
+                        activity.getTitle(),
+                        "ACTIVITY",
+                        "activity-" + activity.getId()));
+            });
         }
 
         String userPrompt = "【知识片段】\n" + knowledge

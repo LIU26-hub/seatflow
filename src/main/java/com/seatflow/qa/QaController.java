@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.seatflow.common.ApiResponse;
 import com.seatflow.qa.dto.QaRequest;
 import com.seatflow.qa.dto.QaResponse;
+import com.seatflow.qa.dto.ReindexResult;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,7 @@ public class QaController {
     }
 
     @PostMapping("/reindex")
-    public ApiResponse<Integer> reindex() {
+    public ApiResponse<ReindexResult> reindex() {
         return ApiResponse.success(ingestionService.ingest());
     }
 }

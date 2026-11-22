@@ -8,6 +8,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.seatflow.common.BusinessException;
+import com.seatflow.activity.Activity;
+import com.seatflow.activity.ActivityIndexingService;
+import com.seatflow.activity.ActivityRepository;
+import com.seatflow.activity.ActivityStatus;
+import com.seatflow.qa.dto.ReindexResult;
 import com.seatflow.user.CurrentUser;
 import com.seatflow.user.CurrentUserProvider;
 
@@ -24,24 +29,40 @@ public class KnowledgeIngestionService {
     private final VectorStore vectorStore;
     private final String knowledgePath;
     private final CurrentUserProvider currentUserProvider;
+    private final ActivityRepository activityRepository;
+    private final ActivityIndexingService activityIndexingService;
 
     public KnowledgeIngestionService(KnowledgeDocumentLoader loader,
                                      VectorStore vectorStore,
                                      @Value("${seatflow.qa.knowledge-path}") String knowledgePath,
-                                     CurrentUserProvider currentUserProvider) {
+                                     CurrentUserProvider currentUserProvider,
+                                     ActivityRepository activityRepository,
+                                     ActivityIndexingService activityIndexingService) {
         this.loader = loader;
         this.vectorStore = vectorStore;
         this.knowledgePath = knowledgePath;
         this.currentUserProvider = currentUserProvider;
+        this.activityRepository = activityRepository;
+        this.activityIndexingService = activityIndexingService;
     }
 
-    public int ingest() {
+    /**
+     * Rebuilds both halves of the knowledge base: curated rules/FAQ and the
+     * published activities. Activity indexing uses a deterministic id, so this
+     * is safe to run repeatedly.
+     */
+    public ReindexResult ingest() {
         CurrentUser actor = currentUserProvider.require();
         if (!actor.isAdmin()) {
             throw new BusinessException(403, "only admin can rebuild the knowledge base");
         }
         List<Document> documents = loader.load(knowledgePath);
         vectorStore.add(documents);
-        return documents.size();
+
+        List<Activity> activities = activityRepository
+                .findByStatusOrderByRegistrationStartAsc(ActivityStatus.PUBLISHED);
+        activities.forEach(activityIndexingService::index);
+
+        return new ReindexResult(documents.size(), activities.size());
     }
 }
