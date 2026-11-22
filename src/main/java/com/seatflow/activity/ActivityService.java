@@ -9,6 +9,8 @@ import com.seatflow.user.CurrentUser;
 import com.seatflow.user.CurrentUserProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.seatflow.activity.dto.ActivityResponse;
 import com.seatflow.common.BusinessException;
@@ -36,6 +38,7 @@ public class ActivityService {
     private final ActivityRepository activityRepository;
     private final Clock clock;
     private final CurrentUserProvider currentUserProvider;
+    private final ActivityIndexingService activityIndexingService;
 
     @Transactional(readOnly = true)
     public List<ActivityResponse> listPublishedActivities() {
@@ -114,7 +117,11 @@ public class ActivityService {
         activity.setCapacity(request.capacity());
         activity.setRegistrationStart(request.registrationStart());
         activity.setRegistrationEnd(request.registrationEnd());
-        return ActivityResponse.from(activityRepository.save(activity), LocalDateTime.now(clock));
+        Activity saved = activityRepository.save(activity);
+        if (saved.getStatus() == ActivityStatus.PUBLISHED) {
+            afterCommit(() -> activityIndexingService.index(saved));
+        }
+        return ActivityResponse.from(saved, LocalDateTime.now(clock));
     }
 
     @Transactional
@@ -124,7 +131,11 @@ public class ActivityService {
             throw new BusinessException(409, "only draft activity can be published");
         }
         activity.setStatus(ActivityStatus.PUBLISHED);
-        return ActivityResponse.from(activityRepository.save(activity), LocalDateTime.now(clock));
+        Activity saved = activityRepository.save(activity);
+        // Only index after commit: a rolled-back save must not leave a ghost
+        // activity in the knowledge base.
+        afterCommit(() -> activityIndexingService.index(saved));
+        return ActivityResponse.from(saved, LocalDateTime.now(clock));
     }
 
     @Transactional
@@ -134,7 +145,9 @@ public class ActivityService {
             throw new BusinessException(409, "only published or draft activity can be cancelled");
         }
         activity.setStatus(ActivityStatus.CANCELLED);
-        return ActivityResponse.from(activityRepository.save(activity), LocalDateTime.now(clock));
+        Activity saved = activityRepository.save(activity);
+        afterCommit(() -> activityIndexingService.remove(id));
+        return ActivityResponse.from(saved, LocalDateTime.now(clock));
     }
 
     @Transactional(readOnly = true)
@@ -196,5 +209,18 @@ public class ActivityService {
         return activityRepository.findById(activityId)
                 .orElseThrow(() -> BusinessException.notFound("activity not found: " + activityId))
                 .seatsLeft();
+    }
+
+    private void afterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
     }
 }

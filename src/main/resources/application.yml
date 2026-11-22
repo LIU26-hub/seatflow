@@ -32,6 +32,7 @@ spring:
       port: ${REDIS_PORT:6379}
       timeout: 200ms
       connect-timeout: 500ms
+      client-type: jedis
       repositories:
         # Only JPA repositories exist in this project. Turning Redis repository
         # scanning off keeps startup logs clean and avoids Spring trying to
@@ -50,12 +51,13 @@ spring:
       api-key: "${SILICONFLOW_API_KEY:}"
       chat:
         options:
-          model: "${SILICONFLOW_CHAT_MODEL:deepseek-ai/DeepSeek-V3}"
+          model: "${SILICONFLOW_CHAT_MODEL:Qwen/Qwen3-8B}"
           temperature: 0.2
       embedding:
         options:
           model: "${SILICONFLOW_EMBEDDING_MODEL:BAAI/bge-m3}"
     vectorstore:
+      type: redis
       redis:
         uri: "${REDIS_URI:redis://localhost:6379}"
         index: "seatflow-kb"

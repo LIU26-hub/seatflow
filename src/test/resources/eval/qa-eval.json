@@ -1,0 +1,18 @@
+[
+  {"question": "报名后多久要确认？", "expectedSourceIds": ["BR-08"]},
+  {"question": "确认超时了名额会释放吗？", "expectedSourceIds": ["BR-08"]},
+  {"question": "报名满了还能排队吗？", "expectedSourceIds": ["BR-05", "FAQ-03"]},
+  {"question": "可以取消报名吗？取消后名额会马上放出来吗？", "expectedSourceIds": ["BR-04", "FAQ-04"]},
+  {"question": "同一场活动可以报两次吗？", "expectedSourceIds": ["BR-03", "FAQ-05"]},
+  {"question": "报名失败一般是什么原因？", "expectedSourceIds": ["BR-07", "FAQ-06"]},
+  {"question": "活动结束以后还能报名吗？", "expectedSourceIds": ["BR-06"]},
+  {"question": "报名有固定的开始和截止时间吗？", "expectedSourceIds": ["BR-01"]},
+  {"question": "为什么显示名额已满？", "expectedSourceIds": ["BR-02", "FAQ-07"]},
+  {"question": "怎么查看活动还剩多少名额？", "expectedSourceIds": ["FAQ-07"]},
+  {"question": "注册之后就能直接发活动吗？", "expectedSourceIds": ["BR-12", "FAQ-08"]},
+  {"question": "组织者能改别人创建的活动吗？", "expectedSourceIds": ["BR-10", "FAQ-09"]},
+  {"question": "活动发布以后还能改容量吗？", "expectedSourceIds": ["BR-11", "FAQ-10"]},
+  {"question": "报名成功会收到通知吗？", "expectedSourceIds": ["FAQ-11"]},
+  {"question": "通知发送失败会一直重试吗？", "expectedSourceIds": ["BR-13"]},
+  {"question": "用户名可以重复注册吗？", "expectedSourceIds": ["BR-09"]}
+]

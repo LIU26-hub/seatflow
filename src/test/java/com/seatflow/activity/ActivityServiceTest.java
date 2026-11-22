@@ -59,10 +59,14 @@ class ActivityServiceTest {
     @Mock
     private CurrentUserProvider currentUserProvider;
 
+    @Mock
+    private ActivityIndexingService activityIndexingService;
+
     @BeforeEach
     void setUp() {
         Clock fixedClock = Clock.fixed(NOW.atZone(ZONE).toInstant(), ZONE);
-        activityService = new ActivityService(activityRepository, fixedClock, currentUserProvider);
+        activityService = new ActivityService(
+                activityRepository, fixedClock, currentUserProvider, activityIndexingService);
     }
 
     @Test
@@ -207,6 +211,7 @@ class ActivityServiceTest {
         ActivityResponse result = activityService.publishActivity(1L);
 
         assertThat(result.status()).isEqualTo(ActivityStatus.PUBLISHED);
+        then(activityIndexingService).should().index(any(Activity.class));
     }
 
     @Test
@@ -219,6 +224,7 @@ class ActivityServiceTest {
         ActivityResponse result = activityService.cancelActivity(1L);
 
         assertThat(result.status()).isEqualTo(ActivityStatus.CANCELLED);
+        then(activityIndexingService).should().remove(1L);
     }
 
     // ---------- 我的活动 ----------
