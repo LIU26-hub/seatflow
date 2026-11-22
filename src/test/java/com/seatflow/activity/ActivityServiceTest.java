@@ -271,6 +271,23 @@ class ActivityServiceTest {
     }
 
     @Test
+    void publishedActivityCanUpdateDescriptionAndIsReindexed() {
+        Activity published = activityOwnedBy(ORGANIZER_ID, ActivityStatus.PUBLISHED);
+        given(currentUserProvider.require()).willReturn(ORGANIZER);
+        given(activityRepository.findById(1L)).willReturn(Optional.of(published));
+        given(activityRepository.save(any(Activity.class))).willAnswer(invocation -> invocation.getArgument(0));
+        CreateActivityRequest changed = new CreateActivityRequest(
+                "Updated title", "updated description", "New hall",
+                published.getCapacity(), published.getRegistrationStart(), published.getRegistrationEnd());
+
+        ActivityResponse result = activityService.updateActivity(1L, changed);
+
+        assertThat(result.description()).isEqualTo("updated description");
+        assertThat(result.location()).isEqualTo("New hall");
+        then(activityIndexingService).should().index(any(Activity.class));
+    }
+
+    @Test
     void draftActivityCanChangeCapacityBeforePublishing() {
         Activity draft = activityOwnedBy(ORGANIZER_ID, ActivityStatus.DRAFT);
         given(currentUserProvider.require()).willReturn(ORGANIZER);
