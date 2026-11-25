@@ -6,7 +6,7 @@ services:
     image: mysql:8.0
     container_name: seatflow-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-seatflow}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
       MYSQL_DATABASE: seatflow
       TZ: Asia/Shanghai
     command:
@@ -17,7 +17,7 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-seatflow}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -42,8 +42,8 @@ services:
     image: rabbitmq:4-management
     container_name: seatflow-rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-seatflow}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-seatflow}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?set RABBITMQ_DEFAULT_USER in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?set RABBITMQ_DEFAULT_PASS in .env}
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -72,14 +72,14 @@ services:
       # Service names and container ports, not the host published ports.
       DB_URL: "jdbc:mysql://mysql:3306/seatflow?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8"
       DB_USERNAME: root
-      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-seatflow}
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in .env}
       REDIS_HOST: redis
       SEATFLOW_SEAT_GATE_ENABLED: ${SEATFLOW_SEAT_GATE_ENABLED:-true}
       RABBITMQ_HOST: rabbitmq
-      RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:-seatflow}
-      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS:-seatflow}
-      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-please-override-in-production-0123456789}
-      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
+      RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER:?set RABBITMQ_DEFAULT_USER in .env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS:?set RABBITMQ_DEFAULT_PASS in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:?set SILICONFLOW_API_KEY in .env}
       TZ: Asia/Shanghai
     ports:
       - "8080:8080"
@@ -123,7 +123,7 @@ services:
     container_name: seatflow-grafana
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-seatflow}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?set GRAFANA_PASSWORD in .env}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
