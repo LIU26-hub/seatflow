@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Pageable;
 
+import com.seatflow.activity.Activity;
 import com.seatflow.activity.ActivityService;
 import com.seatflow.activity.ActivityStatus;
 import com.seatflow.activity.dto.ActivityResponse;
@@ -34,9 +35,12 @@ import com.seatflow.metrics.SeatFlowMetrics;
 import com.seatflow.notification.Notification;
 import com.seatflow.notification.NotificationRepository;
 import com.seatflow.notification.NotificationStatus;
+import com.seatflow.registration.dto.ActivityRegistrationResponse;
 import com.seatflow.registration.dto.RegistrationResponse;
+import com.seatflow.user.AppUser;
 import com.seatflow.user.CurrentUser;
 import com.seatflow.user.CurrentUserProvider;
+import com.seatflow.user.UserRepository;
 import com.seatflow.user.UserRole;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,6 +69,9 @@ class RegistrationServiceTest {
     @Mock
     private SeatFlowMetrics metrics;
 
+    @Mock
+    private UserRepository userRepository;
+
     private RegistrationService registrationService;
 
     @BeforeEach
@@ -73,7 +80,8 @@ class RegistrationServiceTest {
         RegistrationProperties properties = new RegistrationProperties();
         registrationService = new RegistrationService(
                 registrationRepository, activityService, fixedClock,
-                currentUserProvider, properties, notificationRepository, seatGate, metrics);
+                currentUserProvider, properties, notificationRepository, seatGate, metrics,
+                userRepository);
     }
 
     @Test
@@ -84,6 +92,7 @@ class RegistrationServiceTest {
         given(activityService.getSeatsLeft(ACTIVITY_ID)).willReturn(10);
         given(seatGate.tryReserve(ACTIVITY_ID, 10)).willReturn(true);
         given(activityService.incrementRegistered(ACTIVITY_ID)).willReturn(3);
+        given(activityService.getActivityTitle(ACTIVITY_ID)).willReturn("AI meetup");
         given(registrationRepository.save(any(Registration.class))).willAnswer(invocation -> {
             Registration saved = invocation.getArgument(0);
             saved.setId(10L);
@@ -100,6 +109,8 @@ class RegistrationServiceTest {
         assertThat(saved.getUserId()).isEqualTo(USER.id());
         assertThat(saved.getConfirmDeadline()).isEqualTo(NOW.plusMinutes(15));
         assertThat(result.id()).isEqualTo(10L);
+        assertThat(result.activityId()).isEqualTo(ACTIVITY_ID);
+        assertThat(result.activityTitle()).isEqualTo("AI meetup");
         assertThat(result.status()).isEqualTo(RegistrationStatus.PENDING);
         assertThat(result.seatLeft()).isEqualTo(3);
 
@@ -179,6 +190,7 @@ class RegistrationServiceTest {
         given(registrationRepository.findById(10L))
                 .willReturn(Optional.of(registration(10L, RegistrationStatus.CONFIRMED)));
         given(activityService.getSeatsLeft(ACTIVITY_ID)).willReturn(2);
+        given(activityService.getActivityTitle(ACTIVITY_ID)).willReturn("AI meetup");
 
         RegistrationResponse result = registrationService.confirmActivity(ACTIVITY_ID);
 
@@ -284,6 +296,44 @@ class RegistrationServiceTest {
 
         assertThat(expired).isZero();
         then(activityService).should(never()).releaseRegistered(any());
+    }
+
+    @Test
+    void listForActivityReturnsRosterWithUserIdentity() {
+        Registration confirmed = registration(10L, RegistrationStatus.CONFIRMED);
+        confirmed.setCreatedAt(NOW.minusMinutes(5));
+        given(activityService.requireOwnedActivity(ACTIVITY_ID)).willReturn(new Activity());
+        given(registrationRepository.findByActivityIdOrderByCreatedAtDesc(ACTIVITY_ID))
+                .willReturn(List.of(confirmed));
+        AppUser user = new AppUser();
+        user.setId(USER.id());
+        user.setUsername("participant");
+        user.setDisplayName("张三");
+        given(userRepository.findAllById(List.of(USER.id()))).willReturn(List.of(user));
+
+        List<ActivityRegistrationResponse> result = registrationService.listForActivity(ACTIVITY_ID);
+
+        assertThat(result).hasSize(1);
+        ActivityRegistrationResponse row = result.get(0);
+        assertThat(row.registrationId()).isEqualTo(10L);
+        assertThat(row.userId()).isEqualTo(USER.id());
+        assertThat(row.username()).isEqualTo("participant");
+        assertThat(row.displayName()).isEqualTo("张三");
+        assertThat(row.status()).isEqualTo(RegistrationStatus.CONFIRMED);
+        assertThat(row.createdAt()).isEqualTo(NOW.minusMinutes(5));
+    }
+
+    @Test
+    void listForActivityRejectsNonOwnerBeforeReadingRoster() {
+        given(activityService.requireOwnedActivity(ACTIVITY_ID))
+                .willThrow(new BusinessException(403, "you can only manage activities you created"));
+
+        assertThatThrownBy(() -> registrationService.listForActivity(ACTIVITY_ID))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("you can only manage activities you created");
+
+        then(registrationRepository).shouldHaveNoInteractions();
+        then(userRepository).shouldHaveNoInteractions();
     }
 
     private Registration registration(Long id, RegistrationStatus status) {

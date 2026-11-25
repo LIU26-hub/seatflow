@@ -81,7 +81,7 @@ public class ActivityService {
         return ActivityResponse.from(saved, LocalDateTime.now(clock));
     }
 
-    private Activity requireOwnedActivity(Long id) {
+    public Activity requireOwnedActivity(Long id) {
         CurrentUser me = currentUserProvider.require();
         //防止组织者被降级为普通用户后，重新登录后能管理活动
         if (!me.canCreateActivity()) {
@@ -204,6 +204,17 @@ public class ActivityService {
                 .seatsLeft();
     }
 
+
+
+
+    /** 标题查询不做可见性校验：调用方已持有该活动的报名记录，标题对其不是秘密。 */
+    @Transactional(readOnly = true)
+    public String getActivityTitle(Long id) {
+        return activityRepository.findById(id)
+                .orElseThrow(() -> BusinessException.notFound("activity not found: " + id))
+                .getTitle();
+    }
+
     @Transactional(readOnly = true)
     public int getSeatsLeft(Long activityId) {
         return activityRepository.findById(activityId)
@@ -223,4 +234,6 @@ public class ActivityService {
             }
         });
     }
+
+
 }

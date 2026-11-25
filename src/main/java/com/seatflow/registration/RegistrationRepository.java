@@ -25,6 +25,8 @@ public interface RegistrationRepository extends JpaRepository<Registration, Long
 
     List<Registration> findByUserIdOrderByCreatedAtDesc(Long userId);
 
+    List<Registration> findByActivityIdOrderByCreatedAtDesc(Long activityId);
+
     List<Registration> findByStatusAndConfirmDeadlineBefore(
             RegistrationStatus status, LocalDateTime cutoff, Pageable pageable);
 

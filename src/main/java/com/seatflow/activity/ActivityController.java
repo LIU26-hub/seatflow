@@ -7,6 +7,8 @@ import org.springframework.web.bind.annotation.*;
 
 import com.seatflow.activity.dto.ActivityResponse;
 import com.seatflow.common.ApiResponse;
+import com.seatflow.registration.RegistrationService;
+import com.seatflow.registration.dto.ActivityRegistrationResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -24,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 public class ActivityController {
 
     private final ActivityService activityService;
+    private final RegistrationService registrationService;
 
     @GetMapping
     public ApiResponse<List<ActivityResponse>> listPublished() {
@@ -58,6 +61,11 @@ public class ActivityController {
     @GetMapping("/my")
     public ApiResponse<List<ActivityResponse>> listMy() {
         return ApiResponse.success(activityService.listMyUnpublishedActivities());
+    }
+
+    @GetMapping("/{id}/registrations")
+    public ApiResponse<List<ActivityRegistrationResponse>> listRegistrations(@PathVariable Long id) {
+        return ApiResponse.success(registrationService.listForActivity(id));
     }
 
 }

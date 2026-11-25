@@ -1,10 +1,8 @@
 package com.seatflow.user;
 
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import java.util.List;
+
+import org.springframework.web.bind.annotation.*;
 
 import com.seatflow.common.ApiResponse;
 import com.seatflow.user.dto.AssignRoleRequest;
@@ -25,6 +23,11 @@ import lombok.RequiredArgsConstructor;
 public class AdminUserController {
 
     private final UserRoleService userRoleService;
+
+    @GetMapping
+    public ApiResponse<List<UserResponse>> listUsers(@RequestParam(required = false) String keyword) {
+        return ApiResponse.success(userRoleService.listUsers(keyword));
+    }
 
     @PatchMapping("/{userId}/role")
     public ApiResponse<UserResponse> assignRole(@PathVariable Long userId,

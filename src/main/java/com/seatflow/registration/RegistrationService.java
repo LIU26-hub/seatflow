@@ -21,11 +21,18 @@ import com.seatflow.config.RegistrationProperties;
 import com.seatflow.infra.scheduling.RegistrationExpiryHandler;
 import com.seatflow.infra.gate.SeatGate;
 import com.seatflow.metrics.SeatFlowMetrics;
+import com.seatflow.registration.dto.ActivityRegistrationResponse;
 import com.seatflow.registration.dto.RegistrationResponse;
+import com.seatflow.user.AppUser;
 import com.seatflow.user.CurrentUser;
 import com.seatflow.user.CurrentUserProvider;
+import com.seatflow.user.UserRepository;
 
 import lombok.RequiredArgsConstructor;
+
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Registration lifecycle: hold a seat, confirm it, release it.
@@ -49,6 +56,7 @@ public class RegistrationService implements RegistrationExpiryHandler {
     private final NotificationRepository notificationRepository;
     private final SeatGate seatGate;
     private final SeatFlowMetrics metrics;
+    private final UserRepository userRepository;
 
     @Transactional
     public RegistrationResponse registerActivity(Long activityId) {
@@ -79,7 +87,7 @@ public class RegistrationService implements RegistrationExpiryHandler {
             enqueueNotification(saved.getId(), currentUser.id(), activityId,
                     NotificationEvent.REGISTRATION_PENDING);
             metrics.registrationSucceeded();
-            return RegistrationResponse.from(saved, seatsLeft);
+            return RegistrationResponse.from(saved, seatsLeft, activityService.getActivityTitle(activityId));
         } catch (BusinessException ex) {
             metrics.registrationRejected(reasonOf(ex));
             throw ex;
@@ -124,7 +132,7 @@ public class RegistrationService implements RegistrationExpiryHandler {
         releaseSeatAfterCommit(activityId);
         enqueueNotification(registration.getId(), currentUser.id(), activityId,
                 NotificationEvent.REGISTRATION_CANCELLED);
-        return RegistrationResponse.from(reload(registration.getId()), seatsLeft);
+        return RegistrationResponse.from(reload(registration.getId()), seatsLeft, activity.title());
     }
 
     @Transactional(readOnly = true)
@@ -134,7 +142,23 @@ public class RegistrationService implements RegistrationExpiryHandler {
                 .stream()
                 .map(registration -> RegistrationResponse.from(
                         registration,
-                        activityService.getSeatsLeft(registration.getActivityId())))
+                        activityService.getSeatsLeft(registration.getActivityId()),
+                        activityService.getActivityTitle(registration.getActivityId())))
+                .toList();
+    }
+
+    /** 组织者名单：归属校验复用活动管理的三层规则，用户信息批量查询避免 N+1。 */
+    @Transactional(readOnly = true)
+    public List<ActivityRegistrationResponse> listForActivity(Long activityId) {
+        activityService.requireOwnedActivity(activityId);
+        List<Registration> registrations =
+                registrationRepository.findByActivityIdOrderByCreatedAtDesc(activityId);
+        List<Long> userIds = registrations.stream().map(Registration::getUserId).distinct().toList();
+        Map<Long, AppUser> users = userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(AppUser::getId, Function.identity()));
+        return registrations.stream()
+                .map(registration -> ActivityRegistrationResponse.from(
+                        registration, users.get(registration.getUserId())))
                 .toList();
     }
 
@@ -184,7 +208,9 @@ public class RegistrationService implements RegistrationExpiryHandler {
     }
 
     private RegistrationResponse responseOf(Long registrationId, Long activityId) {
-        return RegistrationResponse.from(reload(registrationId), activityService.getSeatsLeft(activityId));
+        return RegistrationResponse.from(reload(registrationId),
+                activityService.getSeatsLeft(activityId),
+                activityService.getActivityTitle(activityId));
     }
 
     private Registration reload(Long registrationId) {
